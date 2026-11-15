@@ -1,0 +1,21 @@
+KURULUM (3 adım)
+1) optikokuma/ klasöründeki dosyaları GitHub deposuna (saracaksan/optikokuma) aynı adlarla yükleyin / üzerine yazın.
+   (13 dosya: omr-core.js, omr-detect.js, forms-auto.js, scan.js, admin.js, camera.js, forms.js, exams.js, worker.js,
+    index.html, style.css, sw.js, OTOMATIK-FORM-TANIMA.md). Tarayıcıda bir kez yenileyin (servis çalışanı sürümü optik-v9).
+2) apps-script/Code.gs ve appsscript.json içeriğini Apps Script projesine yapıştırın.
+   Dağıt > Dağıtımları yönet > yeni sürüm. İlk çağrıda izin penceresi çıkar (dış istek izni).
+3) (İsteğe bağlı, yapay zekâ önerisi için) Uygulamada Yönetim > Yapay zekâ sekmesinden Claude, Gemini, OpenAI ya da uyumlu bir
+   sağlayıcının anahtarını girin (model alanı boş = en yeni model otomatik seçilir). Anahtar yalnızca sunucuda saklanır.
+
+YENİLER (bu sürüm)
+- Köşe karesi olmayan formlar: iki kenarda ya da yalnızca bir kenarda yan çizgi (zamanlama izi) ile tanıma ve okuma.
+- Ad ve soyad harf ızgaraları + kurum kodu + öğrenci numarası formdan okunur; listede olmayan öğrenci formdan okul listesine eklenebilir.
+- Ad-soyad listedeki öğrenciyle uyuşmuyorsa uyarı (numara yanlış işaretlenmiş olabilir).
+- Pembe / mor / açık renkli baskılı yayınevi formları.
+- Yapay zekâ: Claude + Gemini + OpenAI + uyumlu; hızlı / dengeli / en yetenekli seviye; en yeni model otomatik; arıza halinde yedeğe geçiş.
+
+DİKKAT
+- Yan çizgili ve renkli formları ilk kullanımda mutlaka işaretli bir örnek formla deneyin (OTOMATIK-FORM-TANIMA.md > Koşullar ve sınırlar).
+- Canlı kamera yalnızca köşe karesi olan formlarda çalışır; yan çizgili formlarda dosya yükleyin ya da "Fotoğraf çek" kullanın.
+Ayrıntı: optikokuma/OTOMATIK-FORM-TANIMA.md
+testler/ klasörü yalnızca geliştirici içindir (Node + Playwright; örnek form üreteçleri gen.js / mk*.py), siteye yüklenmez.
