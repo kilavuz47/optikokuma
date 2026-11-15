@@ -99,8 +99,15 @@ App.views.exams = function (root) {
     const stdNup = h('select', { onchange: () => drawStd() }, [1, 2, 4, 6, 8].map(n => h('option', { value: n }, NUP_LABELS[n]))), stdD = h('select', null, [0, 4, 5, 6, 7, 8, 9, 10, 12].map(n => h('option', { value: n }, n ? `${n} haneli öğrenci no` : 'Öğrenci no yok'))), stdSd = h('select', null, [0, 3, 4, 5, 6, 7, 8, 9, 10].map(n => h('option', { value: n }, n ? `${n} haneli kurum kodu` : 'Kurum kodu yok'))), stdBox = h('div', { class: 'grid' }, h('div', { class: 'field' }, h('label', null, 'Sayfaya sığdırma'), stdNup), h('div', { class: 'field' }, h('label', null, 'Öğrenci no'), stdD), h('div', { class: 'field' }, h('label', null, 'Kurum kodu'), stdSd)), stdInfo = h('div', { class: 'small muted' });
     stdD.value = 8; stdSd.value = 0;
     if (curStd) { tplSel.value = 'std:' + curStd.entry.id; stdNup.value = curStd.nup; stdD.value = curStd.d; stdSd.value = curStd.sd; } else tplSel.value = curId;
+    const tplOf = () => { const t = S.templates.find(x => x.templateId === tplSel.value); return t && t.json && t.json.kind === 'custom' && Array.isArray(t.json.lessons) ? t : null; };
+    function applyTplLessons() {
+      const t = tplOf(); if (!t) return; const j = t.json;
+      sections = j.lessons.map(l => ({ name: l.name, count: l.count, coef: 1 })); if (j.choices >= 2 && j.choices <= 6) choices.value = j.choices;
+      if (j.booklets && j.booklets.length) { booklets = j.booklets.slice(); bkIn.value = booklets.join(','); } drawSections(); drawKeys(); drawStd();
+    }
     function drawStd() {
       const on = tplSel.value.startsWith('std:'); stdBox.style.display = on ? '' : 'none'; clear(stdInfo);
+      const ct = tplOf(); if (ct) { const j = ct.json, same = j.questions === totalN(); stdInfo.append(h('div', { class: 'row' }, h('span', { class: same ? '' : 'small', style: same ? null : { color: 'var(--warn)' } }, `Harici form: ${j.questions} soru · ${j.choices} şık · ${j.lessons.map(l => `${l.name} ${l.count}`).join(' · ')}`), same ? null : h('button', { class: 'btn sm', id: 'ex-apply-lessons', onclick: applyTplLessons }, 'Dersleri bu formdan al'))); }
       if (on) { const e = Katalog.byId(tplSel.value.slice(4)); if (e) { const r = tryBuild(Katalog.formOpts(e, { nup: +stdNup.value, digits: +stdD.value, schoolDigits: +stdSd.value })); stdInfo.append(r.error ? h('span', { style: { color: 'var(--bad)' } }, r.error) : `Form: ${Katalog.total(e)} soru · ders ders sütunlar, numaralar her derste 1’den başlar · form kimliği ${r.tpl.formCodeHex}`); } }
     }
     stdD.addEventListener('change', drawStd); stdSd.addEventListener('change', drawStd);
@@ -108,6 +115,7 @@ App.views.exams = function (root) {
     const showKeys = h('input', { type: 'checkbox', checked: c0.showKeys !== false }), veli = h('input', { type: 'checkbox', checked: c0.veli === true, id: 'ex-veli' });
     const err = h('div');
     drawSections(); drawMethod(); drawKeys(); drawStd();
+    if (init && init.templateId && S.templates.some(t => t.templateId === init.templateId)) { tplSel.value = init.templateId; applyTplLessons(); name.value = name.value || (S.templates.find(t => t.templateId === init.templateId) || {}).name || ''; }
     if (init && init.entryId) { const e = Katalog.byId(init.entryId); if (e) { preset.value = e.group !== 'tek' ? e.id : ''; applyEntry(e, true); if (init.nup) stdNup.value = init.nup; if (init.d != null) stdD.value = init.d; stdSd.value = init.sd || 0; drawStd(); } }
     const body = h('div', null,
       h('div', { class: 'grid' }, h('div', { class: 'field' }, h('label', null, 'Sınav adı'), name), h('div', { class: 'field' }, h('label', null, 'Tarih'), date), h('div', { class: 'field' }, h('label', null, 'Kapsam (hangi okullar katılır)'), scopeSel)),
@@ -132,6 +140,7 @@ App.views.exams = function (root) {
         templateId = Katalog.stdId(e.id, +stdNup.value, { sd: +stdSd.value, d: +stdD.value });
       } else if (templateId) {
         const t = S.templates.find(x => x.templateId === templateId);
+        if (t && t.json && t.json.kind === 'custom' && t.json.questions && t.json.questions !== totalN()) { err.append(h('div', { class: 'alert bad' }, `Seçilen form ${t.json.questions} soruluk, sınavınızda ${totalN()} soru var. "Dersleri bu formdan al" düğmesini kullanın ya da soru sayılarını eşitleyin.`)); return false; }
         if (t && t.json && t.json.kind === 'generated' && t.json.opts && t.json.opts.questions !== totalN()) { err.append(h('div', { class: 'alert bad' }, `Seçilen şablon ${t.json.opts.questions} soruluk, sınavınızda ${totalN()} soru var.`)); return false; }
       }
       const config = { sections: sections.map(s => ({ name: s.name.trim(), count: s.count, coef: s.coef })), choices: +choices.value, penalty: parseFloat(pen.value), method: methodSel.value, base: parseFloat(base.value), max: parseFloat(max.value), a: parseFloat(ca.value) || 0, b: parseFloat(cb.value) || 1,
