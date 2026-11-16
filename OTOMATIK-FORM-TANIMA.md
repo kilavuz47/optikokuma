@@ -52,7 +52,11 @@ Aynı ayarlar elle de yazılabilir (Proje ayarları → Betik özellikleri): `AN
 - Kullanıcılar, otomatik tanıt ekranında sağlayıcıyı ve hız/yetenek düzeyini kendileri de seçebilir; seçmezlerse yönetici ayarı kullanılır.
 
 Sınırlar: kullanıcı başına saatte 40, toplamda günde 1000 analiz (`Code.gs` başındaki `AI_USER_PER_HOUR`, `AI_ALL_PER_DAY`).
-`appsscript.json` dosyasındaki `https://www.googleapis.com/auth/script.external_request` izni için kodu yapıştırdıktan sonra **bir kez yeniden yetkilendirme** gerekir (Dağıt → Dağıtımları yönet → yeni sürüm; ilk çağrıda izin penceresi çıkar).
+**Dış bağlantı izni (bir kez):** *"Belirtilen izinler UrlFetchApp.fetch … script.external_request"* hatası, Apps Script'in dış bağlantı iznini henüz almadığı anlamına gelir (kod hatası değil). Çözüm:
+1. Apps Script → **Proje ayarları** → "appsscript.json bildirim dosyasını düzenleyicide göster"i işaretleyin; açılan `appsscript.json` içindeki `oauthScopes` listesinde `https://www.googleapis.com/auth/script.external_request` bulunsun (paketteki dosyayı yapıştırın).
+2. Düzenleyicide işlev listesinden **`izinleriVer`**'i seçip **Çalıştır** deyin; çıkan pencerede hesabınızı seçip **İzin ver** (gelişmiş → güvenli olmayan sayfaya git, kendi betiğiniz).
+3. **Dağıt → Dağıtımları yönet → kalem → Sürüm: Yeni sürüm → Dağıt.** Sonra yapay zekâ ekranında tekrar deneyin.
+Bu izin verilmeden de uygulama yapay zekâsız çalışır.
 
 Not (gizlilik): yapay zekâ adımında yalnızca **boş** form görüntüsü (üzerine blok kimlikleri çizilmiş) sağlayıcıya gönderilir; öğrenci verisi gönderilmez.
 
@@ -61,5 +65,8 @@ Not (gizlilik): yapay zekâ adımında yalnızca **boş** form görüntüsü (ü
 - **Yönetim → Öğrenciler**: okul seçin → "+ Öğrenci ekle", Düzenle, Sil, kutulardan çoklu seçip "Seçilenleri sil", arama ve sınıf süzgeci.
 - **Formlar → Form tasarla ve yazdır**: okulu seçin, öğrencileri işaretleyin → **yalnızca işaretlenenlerin** kişiye özel formu basılır.
 
+## Veli telefonları ve WhatsApp mesajı
+Anne/baba telefonu, kişiye özel sonuç mesajı ve Chrome eklentisi için bkz. **VELI-WHATSAPP.md**.
+
 ## Güncelleme sonrası
-Kodu GitHub Pages'e yükledikten sonra tarayıcıda bir kez yenileyin (servis çalışanı sürümü `optik-v9`). `Code.gs` ve `appsscript.json`'u Apps Script'e yapıştırıp **yeni sürüm dağıtın**. Mevcut kayıtlı şablonlar aynen çalışmaya devam eder.
+Kodu GitHub Pages'e yükledikten sonra tarayıcıda bir kez yenileyin (servis çalışanı sürümü `optik-v10`). `Code.gs` ve `appsscript.json`'u Apps Script'e yapıştırıp **yeni sürüm dağıtın**. Mevcut kayıtlı şablonlar aynen çalışmaya devam eder.

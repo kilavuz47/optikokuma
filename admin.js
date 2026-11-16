@@ -15,11 +15,11 @@ function mapTable(table, fields) {
 
 App.views.admin = function (root) {
   const u = App.state.user;
-  const tabs = u.role === 'okul' ? [['students', 'Öğrenciler'], ['users', 'Öğretmenler'], ['apps', 'Başvurular']] : [['schools', 'Okullar'], ['students', 'Öğrenciler'], ['users', 'Kullanıcılar'], ['apps', 'Başvurular']].concat(u.role === 'admin' ? [['ai', 'Yapay zekâ']] : []);
+  const tabs = u.role === 'okul' ? [['students', 'Öğrenciler'], ['users', 'Öğretmenler'], ['wa', 'Veli WhatsApp'], ['apps', 'Başvurular']] : [['schools', 'Okullar'], ['students', 'Öğrenciler'], ['users', 'Kullanıcılar'], ['wa', 'Veli WhatsApp'], ['apps', 'Başvurular']].concat(u.role === 'admin' ? [['ai', 'Yapay zekâ']] : []);
   if (!tabs.some(t => t[0] === AD.tab)) AD.tab = tabs[0][0];
   const tb = h('div', { class: 'tabs' }), pane = h('div');
   const lab = (id, l) => id === 'apps' && App.state.pending ? [l, h('span', { class: 'badge', style: { position: 'static', marginLeft: '.4rem', display: 'inline-block' } }, App.state.pending)] : l;
-  const draw = () => { clear(tb).append(...tabs.map(([id, l]) => h('button', { id: 'ad-tab-' + id, class: AD.tab === id ? 'active' : '', onclick: () => { AD.tab = id; draw(); } }, lab(id, l)))); clear(pane); ({ schools: schoolsTab, students: studentsTab, users: usersTab, apps: appsTab, ai: aiTab })[AD.tab](pane); };
+  const draw = () => { clear(tb).append(...tabs.map(([id, l]) => h('button', { id: 'ad-tab-' + id, class: AD.tab === id ? 'active' : '', onclick: () => { AD.tab = id; draw(); } }, lab(id, l)))); clear(pane); ({ schools: schoolsTab, students: studentsTab, users: usersTab, wa: waTab, apps: appsTab, ai: aiTab })[AD.tab](pane); };
   root.append(h('h1', null, 'Yönetim'), tb, pane); draw(); App.refreshPending && App.refreshPending();
 };
 
@@ -44,14 +44,26 @@ function schoolsTab(pane) {
     h('div', { class: 'card' }, h('h2', null, 'Kayıtlı okullar'), list)); drawList();
 }
 
+/** Veli telefonları yalnızca okul yöneticisi ve üstüne gelir ve çevrim dışı önbelleğe yazılmaz; sunucuya ulaşılamazsa telefonsuz (önbellekli) liste döner. */
+async function getStudentsTel(code) {
+  try { return (await api('listStudents', { okulKodu: String(code), tel: true })).students || []; }
+  catch (e) { return getStudents(code); }
+}
+/** 905321112233 → 0532 111 22 33 (gösterim); başka biçimler +ülkekodu ile. */
+function telShow(n) {
+  n = String(n || ''); if (!n) return '';
+  const m = n.match(/^90(5\d{2})(\d{3})(\d{2})(\d{2})$/); return m ? `0${m[1]} ${m[2]} ${m[3]} ${m[4]}` : '+' + n;
+}
+const telChips = x => x.anneTel === undefined ? '' : h('span', { class: 'chips' }, h('span', { class: 'chip ' + (x.anneTel ? 'ok' : ''), title: x.anneTel ? 'Anne: ' + telShow(x.anneTel) : 'Anne telefonu yok' }, 'Anne'), h('span', { class: 'chip ' + (x.babaTel ? 'ok' : ''), title: x.babaTel ? 'Baba: ' + telShow(x.babaTel) : 'Baba telefonu yok' }, 'Baba'));
+
 function studentsTab(pane) {
   const S = App.state, sel = h('select', null, h('option', { value: '' }, 'Okul seçin…'), S.schools.map(s => h('option', { value: s.okulKodu }, schoolLabel(s)))), body = h('div');
   if (S.user.role === 'okul' && S.schools[0]) sel.value = S.schools[0].okulKodu;
   async function load() {
     clear(body); if (!sel.value) return; Settings.set('admSchool', sel.value);
-    const code = sel.value, st = await getStudents(code), holder = h('div');
-    body.append(h('div', { class: 'card' }, h('h2', null, 'Öğrenci ekle / güncelle'), h('p', { class: 'small muted' }, 'Sütunlar: ', h('span', { class: 'mono' }, 'ogrNo · ad · soyad · sinif'), '. Aynı numaralı öğrenci güncellenir. Okutulan form numarası bu listeyle doğrulanır, sonuçlarda isim görünür.'),
-      importBox('ogrNo\tad\tsoyad\tsinif\n101\tAli\tYılmaz\t8-A', async rows => { const r = await api('importStudents', { okulKodu: code, rows: mapTable(rows, { ogrNo: ['ogrNo', 'no', 'numara', 'öğrenci no', 'ogrenci no'], ad: ['ad', 'adi', 'isim'], soyad: ['soyad', 'soyadi'], sinif: ['sinif', 'sınıf', 'sube', 'şube'], veliKodu: ['velikodu', 'veli kodu', 'veli_kodu', 'veli kod', 'pin'] }) }); await load(); return r; })),
+    const code = sel.value, st = await getStudentsTel(code), holder = h('div');
+    body.append(h('div', { class: 'card' }, h('h2', null, 'Öğrenci ekle / güncelle'), h('p', { class: 'small muted' }, 'Sütunlar: ', h('span', { class: 'mono' }, 'ogrNo · ad · soyad · sinif · anneTel · babaTel'), ' (telefonlar isteğe bağlı, 0532 111 22 33 biçimi; velilere WhatsApp için “Veli WhatsApp” sekmesinde kullanılır). Aynı numaralı öğrenci güncellenir. Okutulan form numarası bu listeyle doğrulanır, sonuçlarda isim görünür.'),
+      importBox('ogrNo\tad\tsoyad\tsinif\tanneTel\tbabaTel\n101\tAli\tYılmaz\t8-A\t0532 111 22 33\t0533 222 33 44', async rows => { const r = await api('importStudents', { okulKodu: code, rows: mapTable(rows, { ogrNo: ['ogrNo', 'no', 'numara', 'öğrenci no', 'ogrenci no'], ad: ['ad', 'adi', 'isim'], soyad: ['soyad', 'soyadi'], sinif: ['sinif', 'sınıf', 'sube', 'şube'], anneTel: ['annetel', 'anne tel', 'anne telefon', 'anne telefonu', 'anne cep', 'anne gsm', 'anne'], babaTel: ['babatel', 'baba tel', 'baba telefon', 'baba telefonu', 'baba cep', 'baba gsm', 'baba'], veliKodu: ['velikodu', 'veli kodu', 'veli_kodu', 'veli kod', 'pin'] }) }); await load(); return r; })),
       h('div', { class: 'card' }, h('h2', null, 'Öğrenci / veli sorgulaması'), h('p', { class: 'small muted', style: { marginTop: 0 } }, 'Öğrenci ve veliler, sınav sahibi "öğrenci/veli sorgulamasına açık" dediği sınavların sonucunu ', h('b', null, 'okul → sınıf → okul numarası'), ' ile görür (bağlantı: Ayarlar). İsterseniz her öğrenciye bir ', h('b', null, 'veli kodu'), ' verin: kodu olan öğrenci için sorgulamada bu kod da istenir (numaranın tahmin edilerek denenmesini önler). Öğrenci listesindeki ad, sorgulama sayfasında maskelenir (Ay** Öz****).'),
         h('div', { class: 'row' }, h('button', { class: 'btn primary', id: 'st-codes', onclick: async ev => { const b = ev.currentTarget; b.disabled = true; try { const r = await api('generateParentCodes', { okulKodu: code }); download(`veli-kodlari-${code}.csv`, toCSV([['Sınıf', 'No', 'Ad', 'Soyad', 'Veli kodu'], ...r.students.map(x => [x.sinif, x.ogrNo, x.ad, x.soyad, x.veliKodu])])); toast(`${r.students.length} öğrencinin veli kodu indirildi` + (r.created ? ` (${r.created} yeni üretildi)` : ''), 'ok'); } catch (e) { toast(e.message, 'bad'); } b.disabled = false; } }, 'Veli kodlarını üret / CSV indir'), h('button', { class: 'btn danger', id: 'st-codes-all', onclick: async ev => { const b = ev.currentTarget; if (!confirm('Bu okuldaki TÜM öğrencilerin veli kodları yenilenecek; eski kodlar geçersiz olur. Devam edilsin mi?')) return; b.disabled = true; try { const r = await api('generateParentCodes', { okulKodu: code, hepsi: true }); download(`veli-kodlari-${code}.csv`, toCSV([['Sınıf', 'No', 'Ad', 'Soyad', 'Veli kodu'], ...r.students.map(x => [x.sinif, x.ogrNo, x.ad, x.soyad, x.veliKodu])])); toast(`${r.students.length} öğrencinin veli kodu yenilendi ve indirildi`, 'ok'); } catch (e) { toast(e.message, 'bad'); } b.disabled = false; } }, 'Tümünü yenile'), h('span', { class: 'small muted' }, 'Kodu olmayanlara 6 haneli kod üretilir; olanlar değişmez. CSV\'yi yazdırıp velilere dağıtın.'))),
       h('div', { class: 'card' }, h('div', { class: 'row between' }, h('h2', null, `Öğrenci listesi (${st.length})`), h('button', { class: 'btn primary', id: 'st-new', onclick: () => studentForm(code, null, load) }, '+ Öğrenci ekle')), holder));
@@ -92,26 +104,29 @@ async function deleteSchool(sch, onDone) {
 
 /* ---- öğrenci ekle / düzenle / sil */
 function studentForm(code, stu, onDone) {
-  const isNew = !stu, f = Object.assign({ ogrNo: '', ad: '', soyad: '', sinif: '' }, stu || {}), err = h('div');
+  const isNew = !stu, f = Object.assign({ ogrNo: '', ad: '', soyad: '', sinif: '', anneTel: '', babaTel: '' }, stu || {}), err = h('div'), hasTel = isNew || stu.anneTel !== undefined;
+  f.anneTel = telShow(f.anneTel); f.babaTel = telShow(f.babaTel);
   const inp = (k, label, extra) => h('div', { class: 'field' }, h('label', null, label), h('input', Object.assign({ type: 'text', id: 'st-f-' + k, value: f[k] || '', oninput: e => { f[k] = e.target.value; } }, extra || {})));
-  modal(isNew ? 'Öğrenci ekle' : 'Öğrenciyi düzenle', h('div', null, h('div', { class: 'grid' }, inp('ogrNo', 'Okul numarası', { inputmode: 'numeric', autocomplete: 'off' }), inp('sinif', 'Sınıf / şube', { placeholder: '8-A' }), inp('ad', 'Ad'), inp('soyad', 'Soyad')), err,
+  modal(isNew ? 'Öğrenci ekle' : 'Öğrenciyi düzenle', h('div', null, h('div', { class: 'grid' }, inp('ogrNo', 'Okul numarası', { inputmode: 'numeric', autocomplete: 'off' }), inp('sinif', 'Sınıf / şube', { placeholder: '8-A' }), inp('ad', 'Ad'), inp('soyad', 'Soyad')),
+    hasTel ? h('div', { class: 'grid', style: { marginTop: '.6rem' } }, inp('anneTel', 'Anne telefonu (WhatsApp)', { type: 'tel', placeholder: '0532 111 22 33', autocomplete: 'off' }), inp('babaTel', 'Baba telefonu (WhatsApp)', { type: 'tel', placeholder: '0533 222 33 44', autocomplete: 'off' })) : h('p', { class: 'small muted' }, 'Veli telefonları şu an çevrim dışı olduğu için gösterilmiyor; kaydederseniz mevcut telefonlar korunur.'),
+    hasTel ? h('p', { class: 'small muted' }, 'Yalnızca cep telefonu (05xx…). Yurt dışı numara için +ülke kodu yazın. Boş bırakırsanız numara silinir. Telefonlar yalnızca okul yöneticisi ve üst yetkililerce görülür.') : null, err,
     !isNew ? h('p', { class: 'small muted' }, 'Numarayı değiştirirseniz bu öğrencinin daha önceki sınav sonuçları eski numarada kalır.') : null), {
     buttons: [{ label: 'Vazgeç' }, { label: 'Kaydet', cls: 'primary', fn: async () => {
-      clear(err); try { await api('saveStudent', { okulKodu: code, ogrNo: f.ogrNo, ad: f.ad, soyad: f.soyad, sinif: f.sinif, yeni: isNew, eskiNo: isNew ? undefined : stu.ogrNo }); toast(isNew ? 'Öğrenci eklendi' : 'Öğrenci güncellendi', 'ok'); onDone && onDone(); }
+      clear(err); try { await api('saveStudent', Object.assign({ okulKodu: code, ogrNo: f.ogrNo, ad: f.ad, soyad: f.soyad, sinif: f.sinif, yeni: isNew, eskiNo: isNew ? undefined : stu.ogrNo }, hasTel ? { anneTel: f.anneTel, babaTel: f.babaTel } : {})); toast(isNew ? 'Öğrenci eklendi' : 'Öğrenci güncellendi', 'ok'); onDone && onDone(); }
       catch (e) { err.append(h('div', { class: 'alert bad' }, e.message)); return false; }
     } }] });
 }
 /** Seçmeli öğrenci tablosu: arama, sınıf süzgeci, tekli/çoklu silme. onChange: liste değişince yeniden yükleme. */
 function studentManager(code, students, onChange) {
   const box = h('div'), q = h('input', { type: 'search', id: 'st-q', placeholder: 'Ad, soyad veya numara ara…' }), cls = h('select', { id: 'st-cls' }, h('option', { value: '' }, 'Tüm sınıflar'), ...Array.from(new Set(students.map(x => x.sinif).filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b), 'tr', { numeric: true })).map(c => h('option', { value: c }, c)));
-  const sel = new Set(), holder = h('div'), delBtn = h('button', { class: 'btn danger', id: 'st-del-sel', disabled: true }, 'Seçilenleri sil'), info = h('span', { class: 'small muted' });
+  const telCol = students.some(x => x.anneTel !== undefined), sel = new Set(), holder = h('div'), delBtn = h('button', { class: 'btn danger', id: 'st-del-sel', disabled: true }, 'Seçilenleri sil'), info = h('span', { class: 'small muted' });
   const view = () => { const t = deTR(q.value); return students.filter(x => (!cls.value || x.sinif === cls.value) && (!t || deTR(x.ad + x.soyad + x.ogrNo).includes(t))).sort((a, b) => String(a.sinif || '').localeCompare(String(b.sinif || ''), 'tr', { numeric: true }) || String(a.ogrNo).localeCompare(String(b.ogrNo), undefined, { numeric: true })); };
   const sync = () => { delBtn.disabled = !sel.size; delBtn.textContent = sel.size ? `Seçilenleri sil (${sel.size})` : 'Seçilenleri sil'; };
   function paint() {
     const list = view(), shown = list.slice(0, 500), all = h('input', { type: 'checkbox', id: 'st-all', 'aria-label': 'Görünenlerin hepsini seç', checked: shown.length > 0 && shown.every(x => sel.has(x.ogrNo)), onchange: e => { shown.forEach(x => e.target.checked ? sel.add(x.ogrNo) : sel.delete(x.ogrNo)); paint(); } });
     info.textContent = `${list.length} öğrenci${list.length > shown.length ? ` (ilk ${shown.length} gösteriliyor)` : ''}`;
-    clear(holder).append(h('div', { class: 'tablewrap' }, h('table', null, h('thead', null, h('tr', null, h('th', null, all), h('th', null, 'No'), h('th', null, 'Ad'), h('th', null, 'Soyad'), h('th', null, 'Sınıf'), h('th', null, ''))),
-      h('tbody', null, shown.map(x => h('tr', { 'data-no': x.ogrNo }, h('td', null, h('input', { type: 'checkbox', class: 'st-chk', 'aria-label': `${x.ad} ${x.soyad} seç`, checked: sel.has(x.ogrNo), onchange: e => { e.target.checked ? sel.add(x.ogrNo) : sel.delete(x.ogrNo); sync(); } })), h('td', null, x.ogrNo), h('td', null, x.ad), h('td', null, x.soyad), h('td', null, x.sinif),
+    clear(holder).append(h('div', { class: 'tablewrap' }, h('table', null, h('thead', null, h('tr', null, h('th', null, all), h('th', null, 'No'), h('th', null, 'Ad'), h('th', null, 'Soyad'), h('th', null, 'Sınıf'), telCol ? h('th', null, 'Veli tel.') : null, h('th', null, ''))),
+      h('tbody', null, shown.map(x => h('tr', { 'data-no': x.ogrNo }, h('td', null, h('input', { type: 'checkbox', class: 'st-chk', 'aria-label': `${x.ad} ${x.soyad} seç`, checked: sel.has(x.ogrNo), onchange: e => { e.target.checked ? sel.add(x.ogrNo) : sel.delete(x.ogrNo); sync(); } })), h('td', null, x.ogrNo), h('td', null, x.ad), h('td', null, x.soyad), h('td', null, x.sinif), telCol ? h('td', null, telChips(x)) : null,
         h('td', { class: 'right nowrap' }, h('button', { class: 'btn sm', 'data-act': 'edit', onclick: () => studentForm(code, x, onChange) }, 'Düzenle'), ' ', h('button', { class: 'btn sm danger', 'data-act': 'del', onclick: () => removeStudents([x]) }, 'Sil'))))))), !shown.length ? h('p', { class: 'muted small' }, students.length ? 'Eşleşen öğrenci yok.' : 'Bu okulda öğrenci yok. Yukarıdan ekleyin veya listeyi yapıştırın.') : null);
     sync();
   }

@@ -145,7 +145,11 @@ function autoTab(pane, redraw) {
       });
       if (r.title && !AU.name) AU.name = r.title; AU.aiNotes = (r.notes || []).slice();
       toast(n ? `Yapay zekâ ${n} blok için öneri uyguladı. Kontrol edin.` : 'Yapay zekâ mevcut tahminlerle aynı görüşte.', 'ok'); draw();
-    } catch (e) { toast(e.code === 'NOAI' ? 'Yapay zekâ anahtarı tanımlı değil; tanıma yapay zekâsız devam eder.' : e.message, 'bad', 8000); btn.disabled = false; btn.textContent = old; }
+    } catch (e) {
+      if (e.code === 'AISCOPE') modal('Yapay zekâ için Apps Script izni gerekli', h('div', null, h('p', null, e.message), h('p', { class: 'small muted' }, 'Bu izin verilene kadar form tanıma yapay zekâsız (yalnızca görüntü işlemeyle) çalışmaya devam eder.')), { buttons: [{ label: 'Tamam', cls: 'primary' }] });
+      else toast(e.code === 'NOAI' ? 'Yapay zekâ anahtarı tanımlı değil; tanıma yapay zekâsız devam eder.' : e.message, 'bad', 8000);
+      btn.disabled = false; btn.textContent = old;
+    }
   }
   function aiUndo() { if (!AU.aiSnap) return; AU.aiSnap.forEach(s => { const b = AU.an.blocks.find(x => x.id === s.id); if (b) { b.role = s.role; b.axis = s.axis; b.name = s.name; b.labels = s.labels; b.ai = s.ai; } }); AU.aiSnap = null; AU.aiNotes = []; AU.aiUsed = null; draw(); }
   /** Seçime göre kullanılacak sağlayıcı ve (tahmini) model: sunucunun yaptığı en yeni model keşfi sonucu. */
