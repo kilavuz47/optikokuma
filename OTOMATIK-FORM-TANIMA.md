@@ -33,6 +33,29 @@ Ek olarak:
 - yan çizgili formda çizgi sayısı şablondakinden farklıysa ya da şablonla örtüşme düşükse (tek çizgide %90, iki çizgide %70 altı) → satır kayması uyarısı;
 - tek yan çizgili formda satır işaretleri şablonla yeterince eşleşmezse form okunmaz, nedeni yazılır.
 
+## Tanınan bölümlere elle müdahale (düzenleyici)
+Otomatik tanıma yanlış ya da eksik bir şey bulursa her bölümü kendiniz düzeltebilirsiniz. Tuvalde bir çerçeveye (ya da sağdaki listeden bir bloğa) tıklayınca o blok seçilir: baloncuk daireleri, **okunacak harfler/rakamlar** (A B C D…, 0–9, alfabe) ve **soru numaraları** çerçevenin içinde görünür; gerçek baloncuğa denk gelmeyen daireler kırmızıdır. Hiçbir bloğa girmeyen baloncuklar turuncu kesikli halkayla gösterilir (kaçırılan bölümü bulmak için).
+
+| Yapmak istediğiniz | Nasıl |
+|---|---|
+| Çerçeveyi taşımak | Çerçevenin içinden sürükleyin · ok tuşları · ▲◀▶▼ düğmeleri |
+| **Milim milim** ayar | "Adım" seçin: 0,5 / 1 / 2 / 5 / 10 / 25 piksel. Ok tuşları adım kadar; **Shift** ×5, **Alt** ×0,5 |
+| Çerçeveyi büyütmek/küçültmek | Kenar ve köşe kutucuklarından çekin · ya da Sol/Sağ/Üst/Alt için **− daralt / + genişlet** (karşı kenar sabit kalır, aradaki satır-sütunlar eşit dağılır) |
+| Soru/şık sayısı | Kenar için **± satır/sütun** · ya da "Soru sayısı" ve "Şık sayısı" kutularına yazın · **Shift + kenar sürükleme** satır/sütun ekler-çıkarır |
+| Gerçek baloncuklara hizalamak | **Baloncuklara oturt** (önce en iyi örtüşen kaymayı bulur, sonra her sütun/satırı baloncuklara çeker) · "Sürüklerken bırakınca oturt" kutusu · **Dikdörtgeni yeniden say** (içindeki baloncuklardan satır/sütun sayısını yeniden bulur) |
+| Üst üste/yan yana tek görünen iki bölümü **ayırmak** | **Böl…** (önerilen nokta kafesteki en geniş boşluktur) · ya da **Yatay böl / Dikey böl** aracını seçip tuvalde iki satır/sütun arasına tıklayın |
+| İki parçayı **birleştirmek** | **Birleştir…**: alt alta için sütunlar, yan yana için satırlar aynı hizada olmalı |
+| Bulunamayan bölümü **eklemek** | **＋ Bölüm ekle** → tuvalde bölümün çevresine dikdörtgen çizin; içinde baloncuk bulunursa ızgara onlardan kurulur, bulunmazsa (silik baskı) satır × sütun sayısını yazarsınız |
+| Türünü seçmek | Listede bloğun türü: soru, öğrenci no, kurum kodu, kitapçık, ad, soyad, yok say. **Okuma yönü**: "her satır bir soru" ya da "her sütun bir soru"; rakam/harf alanlarında da yön seçilir. Ad ve soyad bazen tek satır, bazen ayrı satır olur: yan yana tek blok olarak görünürse **Böl**, ayrı görünürse tek blok yapmak için **Birleştir** |
+| Ders adı, şık harfleri, alfabe | Listedeki kutulara yazın (boş alfabe = Türkçe alfabe) |
+| Soru sırası | Varsayılan: soldan sağa sütunlar, her sütunda yukarıdan aşağı. **▲ Sıra / ▼ Sıra** ile elle değiştirilir ("Okuma sırasına dön" ile sıfırlanır) |
+| Hatayı geri almak | **↶ Geri al / ↷ Yinele** (Ctrl+Z / Ctrl+Y); ardışık küçük kaydırmalar tek adımda birleşir · **Del** seçili bloğu siler (geri alınabilir) |
+| Büyütüp bakmak | **Yakınlaştır** (×2…×6) · **Bloğa git** seçili bloğu büyütüp ortalar |
+
+Elle düzeltilen bloklar listede "✎ elle" etiketi taşır. Özet bölümü; üst üste binen blokları, aynı türden fazladan blokları ve gerçek baloncuklara pek denk gelmeyen ızgaraları uyarı olarak gösterir. Kaydettiğiniz şablonun `meta.edited` alanı elle düzenlendiğini işaretler. Düzenledikten sonra **"İşaretli bir formla dene"** ile cevapları kâğıtla karşılaştırmanız önerilir. Çerçeve türünü değiştirmek ya da yeni form yüklemek bloklardaki düzeltmeleri sıfırlar.
+
+Dokunmatik ekranda: çerçevenin üstünde parmakla sürükleme blok taşır (boşlukta sayfa kayar); milimetrik ayar için düğmeler daha rahattır.
+
 ## Koşullar ve sınırlar
 - Form tamamen görünmeli, düz ve gölgesiz olmalı. Tarama için en az 200 dpi.
 - Şablon **boş** formdan çıkarılır; kayıttan sonra aynı formun işaretli kopyasıyla "İşaretli bir formla dene" yapıp cevapları kâğıtla karşılaştırın (özellikle yan çizgili ve renkli formlarda).
@@ -40,7 +63,7 @@ Ek olarak:
 - Bu özellikler yapay (sentetik) örnek formlarla ve çok sayıda deneme varyantıyla (dönük, perspektifli, gürültülü, JPG, pembe/mor/silik) sınandı. **Gerçek yayınevi formlarını** ilk kullanımda mutlaka işaretli bir örnekle deneyin; tutmayan bir form görürseniz örneğini gönderin.
 
 ## Yapay zekâ adımı (isteğe bağlı)
-Anahtar yoksa yalnızca "Yapay zekâ ile ders adı ve harfleri öner" düğmesi görünmez. Desteklenen sağlayıcılar: **Anthropic (Claude), Google (Gemini), OpenAI** ve OpenAI uyumlu herhangi bir hizmet (örn. OpenRouter, Groq).
+Anahtar yoksa yalnızca "Yapay zekâ ile ders adı ve harfleri öner" düğmesi görünmez; yine de **"API'siz yapay zekâ"** düğmesiyle ücretsiz bir sohbet uygulamasından yardım alabilirsiniz. Ücretsiz seçeneklerin hepsi için bkz. **UCRETSIZ-YAPAY-ZEKA.md**. Desteklenen sağlayıcılar: **Anthropic (Claude), Google (Gemini), OpenAI** ve OpenAI uyumlu herhangi bir hizmet (örn. OpenRouter, Groq).
 
 **Kurulum (yönetici):** uygulamada **Yönetim → Yapay zekâ** sekmesi. Anahtarı yapıştırıp Kaydet deyin; anahtar yalnızca sunucuda (Apps Script **Betik özellikleri**) saklanır, bir daha ekranda gösterilmez (sadece son 4 hane). **Dene** düğmesi anahtarı ve seçilen modeli sınar.
 Aynı ayarlar elle de yazılabilir (Proje ayarları → Betik özellikleri): `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` (veya `GOOGLE_API_KEY`), `OPENAI_API_KEY`, uyumlu hizmet için `COMPAT_API_KEY` + `COMPAT_BASE_URL` + `COMPAT_MODEL` (+ `COMPAT_NAME`). Öncelik: `AI_PROVIDER` = `auto` | `anthropic` | `gemini` | `openai` | `compat`; seviye: `AI_TIER` = `auto` | `fast` | `balanced` | `best`.
@@ -69,4 +92,4 @@ Not (gizlilik): yapay zekâ adımında yalnızca **boş** form görüntüsü (ü
 Anne/baba telefonu, kişiye özel sonuç mesajı ve Chrome eklentisi için bkz. **VELI-WHATSAPP.md**.
 
 ## Güncelleme sonrası
-Kodu GitHub Pages'e yükledikten sonra tarayıcıda bir kez yenileyin (servis çalışanı sürümü `optik-v10`). `Code.gs` ve `appsscript.json`'u Apps Script'e yapıştırıp **yeni sürüm dağıtın**. Mevcut kayıtlı şablonlar aynen çalışmaya devam eder.
+Kodu GitHub Pages'e yükledikten sonra tarayıcıda bir kez yenileyin (servis çalışanı sürümü `optik-v11`). `Code.gs` ve `appsscript.json`'u Apps Script'e yapıştırıp **yeni sürüm dağıtın**. Mevcut kayıtlı şablonlar aynen çalışmaya devam eder.

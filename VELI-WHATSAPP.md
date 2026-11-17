@@ -35,4 +35,4 @@ Kuyruk biçimi (uygulama ↔ eklenti sözleşmesi): `[{ id, n, t, ad }]` — `id
 - Mesaj uzunluğunu ~1000 karakterin altında tutun (önizlemede sayı yazar).
 
 ## Güncelleme
-Depodaki dosyaları yükleyin (`veli-wa.js` yeni, `whatsapp-eklentisi.zip` ve `whatsapp-eklentisi/` yeni), `Code.gs`'i Apps Script'e yapıştırıp **yeni sürüm dağıtın**. E-Tabloya *anneTel*, *babaTel* sütunları ve *Gonderim* sayfası ilk istekte kendiliğinden eklenir. Tarayıcıda bir kez yenileyin (servis çalışanı sürümü `optik-v10`).
+Depodaki dosyaları yükleyin (`veli-wa.js` yeni, `whatsapp-eklentisi.zip` ve `whatsapp-eklentisi/` yeni), `Code.gs`'i Apps Script'e yapıştırıp **yeni sürüm dağıtın**. E-Tabloya *anneTel*, *babaTel* sütunları ve *Gonderim* sayfası ilk istekte kendiliğinden eklenir. Tarayıcıda bir kez yenileyin (servis çalışanı sürümü `optik-v11`).

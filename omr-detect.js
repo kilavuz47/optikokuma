@@ -648,17 +648,167 @@
     return {
       ok: true, warnings, frameKind: kind, tracks: sides ? A.tracks.slice() : null, marks: marks ? marks.map(m => [r2(m[0]), r2(m[1])]) : null, markPitch: r2(markPitch), corners: A.corners, H: fr.H, anchorSize: r2(asz), frame: { w: fr.w, h: fr.h }, anchors: fr.anchors.map(a => [r2(a[0]), r2(a[1])]), k: fr.k,
       bsz: { w: r2(det.bw), h: r2(det.bh), level: det.level }, r: r2(Math.min(det.bw, det.bh) / 2), pitch: r2(Math.min(st.pitchX || 1e9, st.pitchY || 1e9)), nBubbles: total,
-      blocks, rectified: { gray: fr.gray, w: fr.w, h: fr.h }
+      blocks, bubbles: [].concat(...clusters.map(c => c.list)), rectified: { gray: fr.gray, w: fr.w, h: fr.h }
     };
   }
 
   /** Bloğu k. satırdan (dir='row') ya da k. sütundan (dir='col') sonra ikiye böler. Satır bölme yalnızca satırı soru olan bloklarda anlamlıdır. */
-  function splitBlock(blocks, id, after, dir) {
+  function splitBlock(blocks, id, after, dir, force) {
     dir = dir === 'col' ? 'col' : 'row'; const i = blocks.findIndex(b => b.id === id); if (i < 0) return false;
-    const b = blocks[i]; if (dir === 'row' && b.axis === 'col') return false;
+    const b = blocks[i]; if (dir === 'row' && b.axis === 'col' && !force) return false;
     const total = dir === 'row' ? b.rows : b.cols; if (!(after >= 1 && after < total)) return false;
-    blocks.splice(i, 1, cutBlock(b, dir, 0, after, 'a'), cutBlock(b, dir, after, total, 'b')); return true;
+    const x = cutBlock(b, dir, 0, after, 'a'), y = cutBlock(b, dir, after, total, 'b'); x.manual = y.manual = true;
+    blocks.splice(i, 1, x, y); return true;
   }
+
+  /* ------------------------------------------------------------------ elle düzenleme yardımcıları
+   *  Blok = düzenli ızgara: xs[] sütun merkezleri, ys[] satır merkezleri (düzeltilmiş çerçeve pikseli), bw × bh baloncuk boyutu.
+   *  Dikdörtgen = ızgaranın dış sınırı (merkezler ± yarım baloncuk). Her işlev bloğu yerinde değiştirir ve türev alanları (rows, cols, x0…, cells, missing, n, fill) yeniler.
+   *  `bubbles` (analyze().bubbles) verilirse bulunan/eksik baloncuk sayımı gerçek baloncuklara göre yapılır. */
+  const idxCache = new WeakMap();
+  function bubbleIndex(list) {
+    let ix = idxCache.get(list); if (ix) return ix;
+    const cell = Math.max(8, median(list.map(b => Math.max(b.bw || 0, b.bh || 0))) || 16), map = new Map();
+    list.forEach(b => { const k = Math.floor(b.cx / cell) + ',' + Math.floor(b.cy / cell); let a = map.get(k); if (!a) map.set(k, a = []); a.push(b); });
+    ix = { cell, map }; idxCache.set(list, ix); return ix;
+  }
+  /** Merkezi dikdörtgenin (x0,y0)-(x1,y1) içinde kalan baloncuklar. */
+  function bubblesIn(list, x0, y0, x1, y1) {
+    if (!list || !list.length) return [];
+    const ix = bubbleIndex(list), out = [];
+    for (let i = Math.floor(x0 / ix.cell); i <= Math.floor(x1 / ix.cell); i++) for (let j = Math.floor(y0 / ix.cell); j <= Math.floor(y1 / ix.cell); j++) (ix.map.get(i + ',' + j) || []).forEach(b => { if (b.cx >= x0 && b.cx <= x1 && b.cy >= y0 && b.cy <= y1) out.push(b); });
+    return out;
+  }
+  function nearestBubble(list, x, y, tol) {
+    if (!list || !list.length) return null;
+    const ix = bubbleIndex(list), R = Math.ceil(tol / ix.cell), ci = Math.floor(x / ix.cell), cj = Math.floor(y / ix.cell); let best = null, bd = tol;
+    for (let i = ci - R; i <= ci + R; i++) for (let j = cj - R; j <= cj + R; j++) (ix.map.get(i + ',' + j) || []).forEach(b => { const d = Math.hypot(b.cx - x, b.cy - y); if (d <= bd) { bd = d; best = b; } });
+    return best;
+  }
+  /** xs/ys → rows, cols, uçlar, cells, missing, n, fill. */
+  function refit(b, bubbles) {
+    b.xs = b.xs.slice().sort((p, q) => p - q).map(r2); b.ys = b.ys.slice().sort((p, q) => p - q).map(r2);
+    b.rows = b.ys.length; b.cols = b.xs.length; b.x0 = b.xs[0]; b.x1 = b.xs[b.cols - 1]; b.y0 = b.ys[0]; b.y1 = b.ys[b.rows - 1]; b.cvX = gapCv(b.xs); b.cvY = gapCv(b.ys);
+    const tol = 0.5 * Math.min(b.bw, b.bh), have = bubbles && bubbles.length, ds = []; b.cells = []; b.missing = [];
+    for (let r = 0; r < b.rows; r++) for (let c = 0; c < b.cols; c++) {
+      b.cells.push({ r, c, cx: b.xs[c], cy: b.ys[r] });
+      if (have) { const q = nearestBubble(bubbles, b.xs[c], b.ys[r], tol); if (q) ds.push(Math.hypot(q.cx - b.xs[c], q.cy - b.ys[r])); else b.missing.push([r, c]); }
+    }
+    const total = b.rows * b.cols; b.n = total - b.missing.length; b.fill = total ? b.n / total : 0; b.err = ds.length ? r2(median(ds)) : -1;   // err: bulunan baloncuklara ortalama (ortanca) uzaklık, piksel; -1 = hiç bulunamadı
+    return b;
+  }
+  const touch = (b, bubbles) => { refit(b, bubbles); b.manual = true; return b; };
+  const MAX_LINES = 400;
+
+  /** Bloğu (dx, dy) piksel kaydırır. */
+  function moveBlock(b, dx, dy, bubbles) { b.xs = b.xs.map(v => v + dx); b.ys = b.ys.map(v => v + dy); return touch(b, bubbles); }
+  /** Bir kenarı `delta` piksel DIŞA doğru çeker (negatif = içe); karşı kenar sabit kalır, aradaki satır/sütunlar orantılı yeniden dağılır.
+   *  edge: 'left' | 'right' | 'top' | 'bottom'. Tek satır/sütunlu bloğun o yönde açıklığı olmadığından yapılamaz (false döner); komşu baloncuklar çok sıkışacaksa da false. */
+  function stretchEdge(b, edge, delta, bubbles) {
+    const horiz = edge === 'left' || edge === 'right', front = edge === 'left' || edge === 'top', ax = horiz ? b.xs : b.ys; if (ax.length < 2 || !isFinite(delta)) return false;
+    const lo = ax[0], hi = ax[ax.length - 1], fixed = front ? hi : lo, moving = front ? lo : hi, nm = moving + (front ? -delta : delta);
+    if ((nm - fixed) * (moving - fixed) <= 0 || Math.abs(nm - fixed) < (ax.length - 1) * 0.6 * (horiz ? b.bw : b.bh)) return false;
+    const k = (nm - fixed) / (moving - fixed), out = ax.map(v => fixed + (v - fixed) * k); if (horiz) b.xs = out; else b.ys = out; touch(b, bubbles); return true;
+  }
+  /** Bir kenara n satır/sütun ekler (n > 0, mevcut aralıkla) ya da o kenardan |n| satır/sütun siler (n < 0; en az 1 kalır). opts: { pitch (tek satırlı blokta aralık), bubbles } */
+  function addLines(b, edge, n, opts) {
+    opts = opts || {}; const horiz = edge === 'left' || edge === 'right', front = edge === 'left' || edge === 'top', ax = (horiz ? b.xs : b.ys).slice(), size = horiz ? b.bw : b.bh;
+    const gaps = ax.slice(1).map((v, i) => v - ax[i]), pitch = gaps.length ? median(gaps) : (opts.pitch || 1.6 * size);
+    if (n > 0) for (let i = 0; i < n && ax.length < MAX_LINES; i++) { if (front) ax.unshift(ax[0] - pitch); else ax.push(ax[ax.length - 1] + pitch); }
+    else for (let i = 0; i < -n && ax.length > 1; i++) { if (front) ax.shift(); else ax.pop(); }
+    if (horiz) b.xs = ax; else b.ys = ax; return touch(b, opts.bubbles);
+  }
+  /** Satır/sütun sayısını verilen değere getirir (alt ve sağ kenardan ekler/siler). */
+  function setGrid(b, rows, cols, opts) {
+    rows = Math.max(1, Math.min(MAX_LINES, Math.round(rows) || b.rows)); cols = Math.max(1, Math.min(MAX_LINES, Math.round(cols) || b.cols));
+    if (rows !== b.rows) addLines(b, 'bottom', rows - b.rows, opts); if (cols !== b.cols) addLines(b, 'right', cols - b.cols, opts); return b;
+  }
+  /** Baloncuk boyutunu (genişlik ve yükseklik) `d` piksel büyütür/küçültür. */
+  function resizeBubbles(b, d, bubbles) { b.bw = Math.max(4, r2(b.bw + d)); b.bh = Math.max(4, r2(b.bh + d)); return touch(b, bubbles); }
+
+  /** Izgarayı gerçek baloncuklara oturtur: önce en iyi örtüşen küçük kaydırmayı arar (en çok ±1 aralık), sonra her sütun/satırı komşu baloncukların ortalamasına çeker.
+   *  Dönüş: { before, after, dx, dy, total } (örtüşen hücre sayıları). Baloncuk yoksa değişiklik yapmaz. */
+  function snapBlock(b, bubbles) {
+    const total = b.rows * b.cols, tol = 0.5 * Math.min(b.bw, b.bh);
+    const score = (dx, dy) => { let s = 0; for (let r = 0; r < b.rows; r++) for (let c = 0; c < b.cols; c++) if (nearestBubble(bubbles, b.xs[c] + dx, b.ys[r] + dy, tol)) s++; return s; };
+    if (!bubbles || !bubbles.length) return { before: 0, after: 0, dx: 0, dy: 0, total };
+    const before = score(0, 0);
+    const gx = b.cols > 1 ? (b.x1 - b.x0) / (b.cols - 1) : 1.6 * b.bw, gy = b.rows > 1 ? (b.y1 - b.y0) / (b.rows - 1) : 1.6 * b.bh, st = Math.max(1, 0.25 * Math.min(b.bw, b.bh)); let best = { s: before, dx: 0, dy: 0, d: 0 };
+    if (before < total) for (let dy = -gy; dy <= gy + 1e-6; dy += st) for (let dx = -gx; dx <= gx + 1e-6; dx += st) { const s = score(dx, dy), d = Math.hypot(dx, dy); if (s > best.s || (s === best.s && s > before && d < best.d)) best = { s, dx, dy, d }; }
+    b.xs = b.xs.map(v => v + best.dx); b.ys = b.ys.map(v => v + best.dy);
+    const bandY0 = b.ys[0] - 0.6 * b.bh, bandY1 = b.ys[b.rows - 1] + 0.6 * b.bh, bandX0 = b.xs[0] - 0.6 * b.bw, bandX1 = b.xs[b.cols - 1] + 0.6 * b.bw;
+    for (let pass = 0; pass < 2; pass++) {
+      b.xs = b.xs.map(x => { const m = bubblesIn(bubbles, x - tol, bandY0, x + tol, bandY1); return m.length >= Math.min(b.rows, Math.max(1, Math.ceil(0.4 * b.rows))) ? median(m.map(q => q.cx)) : x; });
+      b.ys = b.ys.map(y => { const m = bubblesIn(bubbles, bandX0, y - tol, bandX1, y + tol); return m.length >= Math.min(b.cols, Math.max(1, Math.ceil(0.4 * b.cols))) ? median(m.map(q => q.cy)) : y; });
+    }
+    touch(b, bubbles); return { before, after: b.n, dx: r2(best.dx), dy: r2(best.dy), total };
+  }
+
+  /** Izgara kuran ortak bölüm: merkez listesinden (tek blok, aralık kuralı olmadan) xs/ys çıkarır. */
+  function gridBlock(list, bw, bh) {
+    const tolX = 0.35 * bw, tolY = 0.35 * bh, cx = cluster1d(list.map(p => p.cx), tolX), cy = cluster1d(list.map(p => p.cy), tolY);
+    const xs = cx.centers.map((_, c) => mean(list.filter((_, k) => cx.as[k] === c).map(p => p.cx))), ys = cy.centers.map((_, r) => mean(list.filter((_, k) => cy.as[k] === r).map(p => p.cy)));
+    const b = { id: 'x', xs, ys, bw, bh, role: 'questions', axis: 'row', name: '', labels: '', conf: 'high', why: '', glyph: '' };
+    return refit(b, list);
+  }
+  /** Çizilen dikdörtgenden (dış sınır: x0,y0,x1,y1) yeni blok üretir.
+   *  1) İçinde en az 2 gerçek baloncuk varsa: baloncuk merkezlerinden tek ızgara (kenardaki yanlış pozitifler budanır).
+   *  2) Yoksa (silik baskı) ve opts.rows/cols verilmişse: dikdörtgene eşit aralıklı rows×cols ızgara; sonra gerçek baloncuklara oturmayı dener.
+   *  Dönüş: { ok, block, mode: 'bubbles'|'grid', error } */
+  function blockFromRect(bubbles, rect, opts) {
+    opts = opts || {}; const x0 = Math.min(rect.x0, rect.x1), x1 = Math.max(rect.x0, rect.x1), y0 = Math.min(rect.y0, rect.y1), y1 = Math.max(rect.y0, rect.y1);
+    if (x1 - x0 < 6 || y1 - y0 < 6) return { ok: false, error: 'Dikdörtgen çok küçük.' };
+    let dflt = bubbles && bubbles.length ? { w: median(bubbles.map(q => q.bw)), h: median(bubbles.map(q => q.bh)) } : null;
+    if (dflt) { const s = 2 * Math.max(dflt.w, dflt.h), nb = bubblesIn(bubbles, x0 - s, y0 - s, x1 + s, y1 + s); if (nb.length >= 3) dflt = { w: median(nb.map(q => q.bw)), h: median(nb.map(q => q.bh)) }; }   // boyut: dikdörtgenin çevresindeki baloncuklardan (ad-soyad ızgarası gibi farklı boyutlu alanlar için)
+    const bw = opts.bw || (dflt && dflt.w) || 0, bh = opts.bh || (dflt && dflt.h) || 0;
+    const inside = opts.grid ? [] : bubblesIn(bubbles, x0, y0, x1, y1);
+    if (inside.length >= 2) {
+      const w = median(inside.map(q => q.bw)), h = median(inside.map(q => q.bh)); let b = gridBlock(inside, w, h);
+      if (b.rows >= 1 && b.cols >= 1) { b = trimEdges(b); b.manual = true; return { ok: true, block: b, mode: 'bubbles' }; }
+    }
+    const rows = Math.round(opts.rows), cols = Math.round(opts.cols);
+    if (!(rows >= 1 && cols >= 1) || !bw || !bh) return { ok: false, error: 'Bu dikdörtgenin içinde baloncuk bulunamadı. Satır ve sütun sayısını yazarak elle ızgara oluşturun.' };
+    if (rows > MAX_LINES || cols > MAX_LINES) return { ok: false, error: 'Satır/sütun sayısı çok büyük.' };
+    const line = (a0, a1, n, sz) => { const lo = a0 + sz / 2, hi = a1 - sz / 2; if (n === 1 || hi <= lo) return Array.from({ length: n }, (_, i) => n === 1 ? (a0 + a1) / 2 : lo + i * 1.6 * sz); return Array.from({ length: n }, (_, i) => lo + i * (hi - lo) / (n - 1)); };
+    let b = refit({ id: 'x', xs: line(x0, x1, cols, bw), ys: line(y0, y1, rows, bh), bw, bh, role: 'questions', axis: 'row', name: '', labels: '', conf: 'high', why: '', glyph: '' }, bubbles);
+    if (opts.snap !== false && bubbles && bubbles.length) snapBlock(b, bubbles);
+    b.manual = true; return { ok: true, block: b, mode: 'grid' };
+  }
+  /** Var olan bloğun dikdörtgenini yeniden sayar: dikdörtgenin içindeki gerçek baloncuklardan ızgarayı yeniden kurar (sayılar değişebilir). */
+  function regridBlock(b, bubbles) {
+    const r = blockFromRect(bubbles, { x0: b.x0 - b.bw / 2 - 3, y0: b.y0 - b.bh / 2 - 3, x1: b.x1 + b.bw / 2 + 3, y1: b.y1 + b.bh / 2 + 3 }, { grid: false });
+    if (!r.ok || r.mode !== 'bubbles') return false;
+    ['xs', 'ys', 'bw', 'bh'].forEach(k => { b[k] = r.block[k]; }); touch(b, bubbles); return true;
+  }
+  /** İki bloğu tek bloğa birleştirir: alt alta (aynı sütunlar) ya da yan yana (aynı satırlar). Dönüş: { ok, block | error } (yeni blok a'nın rol ve ayarlarını taşır). */
+  function mergeBlocks(a, b, bubbles) {
+    const tx = 0.5 * Math.min(a.bw, b.bw), ty = 0.5 * Math.min(a.bh, b.bh), same = (p, q, t) => p.length === q.length && p.every((v, i) => Math.abs(v - q[i]) <= t);
+    const stack = same(a.xs, b.xs, tx), side = same(a.ys, b.ys, ty); let xs, ys;
+    if (stack && !side) { xs = a.xs.map((v, i) => (v + b.xs[i]) / 2); ys = a.ys.concat(b.ys); if (Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0) > 0) return { ok: false, error: 'Bloklar üst üste biniyor; önce birini kaydırın.' }; }
+    else if (side && !stack) { ys = a.ys.map((v, i) => (v + b.ys[i]) / 2); xs = a.xs.concat(b.xs); if (Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0) > 0) return { ok: false, error: 'Bloklar üst üste biniyor; önce birini kaydırın.' }; }
+    else return { ok: false, error: stack && side ? 'İki blok aynı yerde duruyor.' : 'Bloklar birleştirilemiyor: alt alta birleştirmek için sütun sayıları ve konumları, yan yana birleştirmek için satır sayıları ve konumları aynı olmalı. Önce satır/sütun sayısını ve konumunu eşitleyin.' };
+    const m = Object.assign({}, a, { xs, ys, bw: a.bw, bh: a.bh, id: a.id, manual: true, conf: 'high', why: '' }); return { ok: true, block: refit(m, bubbles) };
+  }
+  /** Bölme için akıllı öneri: kafesteki en geniş boşluğun öncesindeki satır/sütun sayısı (1…n-1). dir: 'row' | 'col'. */
+  function suggestSplit(b, dir) {
+    const ax = dir === 'col' ? b.xs : b.ys; if (ax.length < 2) return 0; const gp = ax.slice(1).map((v, i) => v - ax[i]); return gp.indexOf(Math.max(...gp)) + 1;
+  }
+  /** Piksel konumuna (çerçeve pikseli) göre bölme noktası: konumun ÖNCESİNDE kalan satır/sütun sayısı. */
+  function splitIndexAt(b, dir, pos) { const ax = dir === 'col' ? b.xs : b.ys; return ax.filter(v => v < pos).length; }
+  /** Bloğu okuma sırasına göre dizer ve b1, b2… kimliklerini yeniden verir (yerinde). opts.keepOrder: sırayı elle verildiği gibi bırak. */
+  function tidy(blocks, opts) {
+    const ord = opts && opts.keepOrder ? blocks.slice() : readingOrder(blocks); blocks.splice(0, blocks.length, ...ord); blocks.forEach((b, i) => { b.id = 'b' + (i + 1); }); return blocks;
+  }
+  /** Boş bir blok (elle ekleme): ızgara verilmişse onu kullanır. */
+  function newBlock(role, grid) { return Object.assign({ id: 'x', role: role || 'questions', axis: 'row', name: '', labels: '', conf: 'high', why: '', glyph: '', manual: true }, grid); }
+  /** Bloğun okuma etiketleri (seçenek ekseni boyunca): soru bloğunda A B C…, rakam alanında 0–9, ad/soyad ızgarasında alfabe. makeTemplate ile aynı kurallar. */
+  function labelsOf(b) {
+    const k = labelAxis(b) === 'row' ? b.cols : b.rows, given = String(b.labels || '').replace(/\s+/g, '');
+    if (b.role === 'name' || b.role === 'surname') { const g = Array.from(given).slice(0, k); return g.length === k ? g : defaultAlphabet(k).map((c, i) => g[i] || c); }
+    const dflt = b.role === 'studentNo' || b.role === 'schoolCode' ? DIGITS : LETTERS, out = given.slice(0, k).split(''); while (out.length < k) out.push(dflt[out.length] || String(out.length + 1)); return out;
+  }
+  /** labelsOf'un hangi eksende olduğu: 'row' = etiketler sütunlara (soldan sağa), 'col' = satırlara (yukarıdan aşağı) yazılır. */
+  function labelAxis(b) { return b.role === 'questions' ? (b.axis === 'col' ? 'col' : 'row') : b.role === 'booklet' ? (b.axis === 'col' ? 'col' : 'row') : (b.axis === 'row' ? 'row' : 'col'); }
 
   /* ------------------------------------------------------------------ şablon üretimi */
   /** Çözümlemedeki (kullanıcı onaylı) blokları okuma şablonuna çevirir. Hata varsa { error } döner. */
@@ -765,5 +915,5 @@
     const res = OMR.readPage(img, tpl, opts); res.fit = info; return res;
   }
 
-  return { LEVELS, ROLE_TR, ALPHA_TR, defaultAlphabet, findAnchors, findSideMarks, findTrack, homographyLS, toFrame, detectBubbles, structure, analyze, splitBlock, makeTemplate, fit, identify, readAuto, matchScore };
+  return { LEVELS, ROLE_TR, ALPHA_TR, defaultAlphabet, findAnchors, findSideMarks, findTrack, homographyLS, toFrame, detectBubbles, structure, analyze, splitBlock, refit, moveBlock, stretchEdge, addLines, setGrid, resizeBubbles, snapBlock, blockFromRect, regridBlock, mergeBlocks, suggestSplit, splitIndexAt, tidy, newBlock, labelsOf, labelAxis, bubblesIn, nearestBubble, readingOrder, glyphStyle, makeTemplate, fit, identify, readAuto, matchScore };
 });

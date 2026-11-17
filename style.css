@@ -264,3 +264,15 @@ pre.cfg { background: var(--soft); padding: .6rem .8rem; border-radius: 8px; ove
 .blk.sel { outline: 2px solid var(--brand); outline-offset: 1px; }
 .blk .field label { font-size: .8rem; }
 #au-canvas { cursor: crosshair; }
+
+/* ---- harici form düzenleyicisi (forms-auto.js): araç çubuğu, kaydırma tuşları, kenar ayarları ---- */
+.au-bar { margin-bottom: .5rem; } .au-sep { width: 1px; align-self: stretch; background: var(--line); margin: 0 .15rem; }
+.au-bar .btn.sm { min-height: 30px; padding: .2rem .5rem; }
+.au-sec { margin-top: .7rem; } .au-sec > .lbl { margin-bottom: .25rem; }
+.au-two { display: grid; gap: .9rem 1.2rem; grid-template-columns: 188px minmax(0, 1fr); align-items: start; } @media (max-width: 560px) { .au-two { grid-template-columns: minmax(0, 1fr); } }
+.au-pad { display: grid; grid-template-columns: repeat(3, 48px); grid-auto-rows: 40px; gap: .25rem; align-items: center; justify-items: center; } .au-pad .btn { width: 48px; min-height: 40px; font-size: 1.05rem; } .au-padc { text-align: center; }
+.au-edge { display: flex; flex-wrap: wrap; gap: .25rem .6rem; align-items: center; margin-bottom: .3rem; } .au-edge > b { width: 2.3rem; } .au-edge .row { flex-wrap: nowrap; }
+.au-edge .btn.sm { padding: .2rem .45rem; font-size: .8rem; min-height: 30px; }
+#au-canvas { touch-action: pan-x pan-y pinch-zoom; user-select: none; -webkit-user-select: none; }
+@media (min-width: 900px) { .au-left { position: sticky; top: 58px; align-self: start; max-height: calc(100vh - 66px); overflow: auto; } .au-left .canvaswrap { max-height: 46vh; } }
+.au-step { margin-top: .7rem; padding-top: .6rem; border-top: 1px dashed var(--line); } .au-step:first-of-type { border-top: 0; }

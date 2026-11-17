@@ -226,6 +226,12 @@ function appsTab(pane) {
 /* ------------------------------------------------------------------ yapay zekâ ayarları (yalnızca sistem yöneticisi)
  * Anahtarlar yalnızca sunucuda (Apps Script Betik Özellikleri) durur: bu ekran onları yazar ama geri okuyamaz (maskeli ipucu görünür).
  * Model alanı boşsa sunucu sağlayıcının güncel model listesini çeker ve seçilen seviyenin (hızlı / dengeli / en yetenekli) en yeni modelini kullanır. */
+/** OpenAI uyumlu, ücretsiz katmanı olan hizmetler için hazır doldurma (model adları değişebilir; "Dene" ile doğrulanır). */
+const COMPAT_PRESETS = [
+  { id: 'groq', name: 'Groq', url: 'https://api.groq.com/openai/v1', model: 'qwen/qwen3.8-27b', tip: 'console.groq.com: ücretsiz anahtar, dakikalık/günlük sınırlı' },
+  { id: 'openrouter', name: 'OpenRouter', url: 'https://openrouter.ai/api/v1', model: 'openrouter/free', tip: 'openrouter.ai: ücretsiz modeller yönlendirici; günlük istek sınırı düşük' },
+  { id: 'mistral', name: 'Mistral', url: 'https://api.mistral.ai/v1', model: 'mistral-small-latest', tip: 'console.mistral.ai: ücretsiz "Experiment" katmanı' }
+];
 function aiTab(pane) {
   const box = h('div', { id: 'ai-box' }); pane.append(box);
   const TIER_L = { auto: 'Otomatik (dengeli)', fast: 'Hızlı', balanced: 'Dengeli', best: 'En yetenekli' }, SRC_L = { list: 'sağlayıcının güncel model listesi', default: 'yerleşik varsayılan (liste alınamadı)', manual: 'elle girilmiş model', none: '' };
@@ -253,6 +259,7 @@ function aiTab(pane) {
         field('API anahtarı' + (hint ? ` (kayıtlı: ${hint})` : ''), keyIn, 'Yalnızca sunucuya yazılır; bir daha gösterilmez.'),
         field(isC ? 'Model adı' : 'Model (isteğe bağlı)', mdl, isC ? '' : 'Boş = en yeni model kendiliğinden seçilir. Belirli bir modele kilitlemek için adını yazın.')),
       isC ? h('div', { class: 'grid' }, field('Hizmet adresi', h('input', { type: 'text', id: 'ai-compat-url', value: d.compatUrl, placeholder: 'https://…/v1', oninput: e => { d.compatUrl = e.target.value.trim(); } }), 'OpenAI uyumlu /chat/completions sunan hizmetin taban adresi (https).'), field('Görünen ad', h('input', { type: 'text', id: 'ai-compat-name', value: d.compatName, placeholder: 'örn: Groq', oninput: e => { d.compatName = e.target.value; } }))) : null,
+      isC ? h('div', { class: 'small', style: { marginTop: '.3rem' } }, h('span', { class: 'muted' }, 'Ücretsiz katmanı olan hizmetler için hazır doldur: '), ...COMPAT_PRESETS.map(pr => h('button', { class: 'btn sm', id: 'ai-preset-' + pr.id, type: 'button', title: pr.tip, style: { marginRight: '.25rem' }, onclick: () => { d.compatUrl = pr.url; d.compatName = pr.name; d.models.compat = pr.model; draw(); } }, pr.name)), h('div', { class: 'muted' }, 'Anahtarı hizmetin sitesinden ücretsiz alıp yukarıya yapıştırın. Ücretsiz katman sınırları ve model adları sık değişir; görüntü destekleyen güncel bir model adını hizmetin model sayfasından kontrol edin (Dene düğmesi çalışıp çalışmadığını gösterir). Ücretsiz katmanlarda gönderilen veri sağlayıcı tarafından kaydedilebilir; yalnızca boş form görüntüsü gider, öğrenci bilgisi gitmez.')) : null,
       o.ok ? h('div', { class: 'small', style: { marginTop: '.4rem' } }, h('b', null, 'Seçilen modeller: '), ['fast', 'balanced', 'best'].map(t => `${TIER_L[t]}: ${o.models[t] || '—'}`).join(' · '), o.source !== 'none' ? h('span', { class: 'muted' }, ` — kaynak: ${SRC_L[o.source] || o.source}`) : null) : null,
       o.ok && o.listError ? h('div', { class: 'small', style: { color: 'var(--warn)' } }, 'Model listesi alınamadı: ' + o.listError) : null,
       h('div', { class: 'row', style: { marginTop: '.5rem' } }, o.ok ? testBtn : null, hint && !cleared ? h('button', { class: 'btn sm danger', id: 'ai-clear-' + o.id, onclick: () => { d.clear.push(o.id); delete d.keys[o.id]; draw(); } }, 'Anahtarı sil') : null, cleared ? h('span', { class: 'small', style: { color: 'var(--warn)' } }, 'Kaydedince anahtar silinir.') : null), out);
