@@ -11,7 +11,7 @@ App.renderPortal = function () {
   const pre = (() => { try { const q = new URLSearchParams(location.hash.split('?')[1] || ''), n = (q.get('n') || '').trim(); return { n: /^[0-9A-Za-z]{1,20}$/.test(n) ? n : '', s: (q.get('s') || '').trim().slice(0, 20) }; } catch (e) { return { n: '', s: '' }; } })();
   const S = { places: null, schools: [], school: null, classes: [], needCode: !!pre.n, data: null, sel: 0, timer: null, gen: 0 };
   const root = h('div', { class: 'pt' });
-  app.append(root);
+  app.append(h('div', { class: 'pt-install' }, Install.card()), root);
 
   const f = (v, d) => (v == null || v === '' || isNaN(v)) ? '—' : nf(v, d == null ? 2 : d);
   const fd = (d) => /^\d{4}-\d{2}-\d{2}/.test(String(d || '')) ? String(d).slice(8, 10) + '.' + String(d).slice(5, 7) + '.' + String(d).slice(0, 4) : String(d || '');

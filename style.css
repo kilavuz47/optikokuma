@@ -365,3 +365,24 @@ tr.og-miss td { color: var(--muted); font-style: italic; }
 .ls-why { margin: 0; padding-left: 1rem; font-size: .85rem; } .ls-why li { margin: .1rem 0; }
 .ls-seg { flex-wrap: wrap; } td.ls-miss { color: var(--muted); background: rgba(227, 73, 72, .12); } td.ls-ok { color: var(--ink); }
 @media print { body.pt-printing main { padding: 0 !important; max-width: none !important; margin: 0 !important; } body.pt-printing .og-head .stats { gap: 1rem; } body.pt-printing .sn-grid2 { grid-template-columns: 1fr 1fr; } body.pt-printing .card { break-inside: avoid; } }
+
+/* OptiNet simgesi */
+.topbar .title { display: flex; align-items: center; gap: .5rem; } .tb-logo { width: 28px; height: 28px; border-radius: 8px; flex: none; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+.login .logo { width: 88px; height: 88px; filter: drop-shadow(0 6px 10px rgba(37, 99, 235, .35)); }
+
+/* Uygulamayı yükle (PWA) */
+.install-card, .install-banner { display: flex; align-items: center; gap: .8rem; padding: .75rem .9rem; border-radius: 14px; background: var(--brand-soft); border: 1px solid var(--line); box-shadow: var(--shadow); }
+.install-card { margin: 0 0 1rem; } .install-card[hidden], .install-banner[hidden], .install-top[hidden] { display: none !important; }
+.install-card img, .install-banner img { width: 44px; height: 44px; border-radius: 11px; flex: none; box-shadow: 0 1px 4px rgba(0, 0, 0, .25); } .install-banner img { width: 40px; height: 40px; }
+.install-card .t, .install-banner .t { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.install-banner { position: fixed; left: .6rem; right: .6rem; bottom: calc(68px + env(safe-area-inset-bottom)); z-index: 40; background: var(--card); border-color: var(--brand); max-width: 520px; margin: 0 auto; }
+@media (min-width: 900px) { .install-banner { display: none !important; } }
+.pt-install { max-width: 720px; margin: 1rem auto 0; padding: 0 1rem; }
+.topbar .install-top { background: rgba(255, 255, 255, .18); color: inherit; border: 0; padding: .25rem .6rem; white-space: nowrap; }
+@media (max-width: 520px) { .install-top .it-txt { display: none; } }
+.inst-steps { padding-left: 1.3rem; margin: .4rem 0; } .inst-steps li { margin: .55rem 0; line-height: 1.45; }
+.inst-ico { stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vertical-align: -5px; margin: 0 .1rem; color: var(--brand); }
+.topbar .install-top .inst-ico { color: inherit; vertical-align: -5px; margin: 0; }
+.install-card { flex-wrap: wrap; } .install-card .t { flex: 1 1 11rem; }
+@media (max-width: 480px) { .install-card .btn { flex: 1 1 100%; } }
+@media print { .install-card, .install-banner, .install-top { display: none !important; } }

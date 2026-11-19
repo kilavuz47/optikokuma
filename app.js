@@ -225,7 +225,7 @@ async function getStudents(okulKodu) {
 }
 function examCfg(ex) { const c = Scoring.normalizeCfg(ex.config || {}); return c; }
 
-const DEFAULT_FOOTER = 'Sıraç AKSAN · Optik Sistem';
+const DEFAULT_FOOTER = 'Sıraç AKSAN · OptiNet';
 const formFooter = () => String(Settings.get('formFooter', DEFAULT_FOOTER) || '');
 
 /** Harici formu sınavın ders/soru yapısına uyarlar (formda 20'şer soruluk bloklar, sınavda farklı sayılar). Birebir uyuyorsa şablon aynen döner. */
@@ -286,11 +286,11 @@ App.renderShell = function () {
   const S = App.state, u = S.user, app = clear($('#app'));
   const items = NAV.filter(n => !n.roles || n.roles.includes(u.role));
   app.append(h('div', { class: 'shell' },
-    h('div', { class: 'topbar' }, h('span', { class: 'title' }, 'Optik Okuma Sistemi'), h('span', { id: 'tb-status', class: 'pill' }, ''),
+    h('div', { class: 'topbar' }, h('span', { class: 'title' }, h('img', { class: 'tb-logo', src: 'icon.svg', alt: '' }), 'OptiNet'), h('span', { id: 'tb-status', class: 'pill' }, ''), Install.topButton(),
       h('div', { class: 'who' }, h('div', null, u.name || u.username), h('div', { class: 'small' }, ROLE_LABEL[u.role] || u.role))),
     h('nav', { class: 'nav', 'aria-label': 'Ana menü' }, items.map(n => h('button', { 'data-id': n.id, onclick: () => App.go(n.id) }, icon(n.id), h('span', null, n.label), n.id === 'queue' ? h('span', { id: 'nav-badge', class: 'badge hidden' }, '0') : null, n.id === 'admin' ? h('span', { id: 'admin-badge', class: 'badge hidden', title: 'Onay bekleyen başvuru' }, '0') : null))),
     h('main', { id: 'main' })));
-  App.updateTopbar(); if (App.refreshQueueCount) App.refreshQueueCount();
+  App.updateTopbar(); if (App.refreshQueueCount) App.refreshQueueCount(); Install.banner();
 };
 
 App.sessionExpired = function (msg) {
@@ -302,7 +302,7 @@ App.sessionExpired = function (msg) {
 
 /* ------------------------------------------------------------------ giriş */
 App.renderLogin = function (msg) {
-  const app = clear($('#app'));
+  const app = clear($('#app')); Install.clearBanner();
   const cfgUrl = String((window.OPTIK_CONFIG && window.OPTIK_CONFIG.apiUrl) || '');
   const url = h('input', { type: 'url', id: 'f-url', placeholder: 'https://script.google.com/macros/s/…/exec', value: getApiUrl(), autocomplete: 'off' });
   const un = h('input', { type: 'text', id: 'f-user', autocomplete: 'username', autocapitalize: 'none', spellcheck: 'false', value: Settings.get('lastUser', '') });
@@ -322,8 +322,9 @@ App.renderLogin = function (msg) {
     cfgUrl && getApiUrl() === cfgUrl ? h('details', { class: 'small' }, h('summary', null, 'Sunucu adresi (yöneticiniz tanımladı)'), h('div', { class: 'field', style: { marginTop: '.4rem' } }, url)) : h('div', { class: 'field' }, h('label', { for: 'f-url' }, 'Sunucu adresi (Apps Script)'), url),
     h('div', { class: 'field', style: { marginTop: '.7rem' } }, h('label', { for: 'f-user' }, 'Kullanıcı adı'), un),
     h('div', { class: 'field', style: { margin: '.7rem 0' } }, h('label', { for: 'f-pass' }, 'Parola'), pw), err, btn);
-  app.append(h('div', { class: 'login' }, h('img', { class: 'logo', src: 'icon.svg', alt: '' }), h('h1', null, 'Optik Okuma Sistemi'),
+  app.append(h('div', { class: 'login' }, h('img', { class: 'logo', src: 'icon.svg', alt: '' }), h('h1', null, 'OptiNet'), h('p', { class: 'center', style: { margin: '-.2rem 0 .6rem', fontWeight: 600, color: 'var(--brand)' } }, 'Optik okuma ve sınav analiz sistemi'),
     msg ? h('div', { class: 'alert warn' }, msg) : null, h('div', { class: 'card' }, form),
+    Install.card(),
     h('p', { class: 'center', style: { margin: '.2rem 0 .6rem' } }, h('a', { href: '#/kayit', id: 'f-register' }, 'Üye ol: öğretmen veya okul kaydı')),
     h('p', { class: 'center', style: { margin: '.2rem 0 .6rem' } }, h('a', { href: '#/ogrenci', id: 'f-portal' }, 'Öğrenci / veli: sonuç sorgulama')),
     h('p', { class: 'muted small center' }, 'Okul, ilçe ve il bazlı optik okuma, puanlama ve karşılaştırma.')));
