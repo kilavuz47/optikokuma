@@ -69,7 +69,7 @@ const waUnknown = tpl => Array.from(new Set((String(tpl || '').match(/\{(\w+)\}/
 function waTab(pane) {
   const S = App.state, u = S.user;
   const st = { ctx: null, rows: [], sel: new Set(), prev: 0 };
-  const schoolSel = h('select', { id: 'wa-school' }, h('option', { value: '' }, 'Okul seçin…'), S.schools.map(s => h('option', { value: s.okulKodu }, schoolLabel(s))));
+  const schoolSel = h('select', { id: 'wa-school' }, h('option', { value: '' }, 'Okul seçin…'), S.schools.map(s => h('option', { value: s.okulKodu }, schoolLabel(s)))), schoolPick = schoolPicker(schoolSel, S.schools);
   const examSel = h('select', { id: 'wa-exam' }), classSel = h('select', { id: 'wa-class' });
   const hedefSel = h('select', { id: 'wa-hedef' }, h('option', { value: 'hepsi' }, 'Anne ve baba'), h('option', { value: 'anne' }, 'Yalnız anne'), h('option', { value: 'baba' }, 'Yalnız baba'));
   const tekrar = h('input', { type: 'checkbox', id: 'wa-tekrar' }), kodUret = h('input', { type: 'checkbox', id: 'wa-kod', checked: true });
@@ -225,7 +225,7 @@ function waTab(pane) {
   pane.append(
     h('div', { class: 'card' }, h('h2', null, 'Veli WhatsApp mesajları'),
       h('p', { class: 'small muted', style: { marginTop: 0 } }, 'Her öğrencinin sonucu, anne ve/veya babasının telefonuna kişiye özel mesaj olarak hazırlanır: kısa sonuç özeti ve velinin uygulamaya nasıl gireceği (okul, sınıf, okul numarası, veli kodu). Veli bağlantıdan girince bu sınav ve geçmiş tüm sınavlarının analizini görür. Telefonlar Öğrenciler sekmesinden (ya da Excel yapıştırarak) girilir.'),
-      h('div', { class: 'grid' }, field('Okul', schoolSel), field('Sınav', examSel), field('Sınıf', classSel), field('Alıcı', hedefSel)),
+      h('div', { class: 'grid' }, field('Okul', schoolPick), field('Sınav', examSel), field('Sınıf', classSel), field('Alıcı', hedefSel)),
       h('label', { class: 'row', style: { margin: '.6rem 0 .1rem' } }, kodUret, 'Veli kodu olmayan öğrencilere kod üret ve mesaja yaz (önerilir)'),
       h('label', { class: 'row', style: { margin: '.1rem 0 .6rem' } }, tekrar, 'Daha önce gönderilenlere de yeniden hazırla'),
       h('div', { class: 'row' }, prepBtn), info),

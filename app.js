@@ -166,6 +166,59 @@ async function refreshBase(force) {
 const examById = id => App.state.exams.find(e => e.examId === id);
 const schoolByCode = c => App.state.schools.find(s => String(s.okulKodu) === String(c));
 function schoolLabel(s) { return s ? `${s.okulAdi} · ${s.ilce}/${s.il} (${s.okulKodu})` : ''; }
+
+/* ------------------------------------------------------------------ okul seçimi: il → ilçe → düzey (+ arama)
+   Uzun okul listesini adım adım daraltır. Yalnızca ayırt edici olan süzgeçler görünür (tek il varsa il kutusu çıkmaz). */
+const spNorm = v => String(v == null ? '' : v).toLocaleLowerCase('tr').replace(/ç/g, 'c').replace(/ğ/g, 'g').replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ş/g, 's').replace(/ü/g, 'u').replace(/̇/g, '');
+const spUniq = a => Array.from(new Set(a.filter(Boolean))).sort((x, y) => String(x).localeCompare(String(y), 'tr'));
+/** schools: okul dizisi. onChange(liste, kullanıcıDeğiştirdi) süzgeç her değiştiğinde çağrılır. Döner: { el, list(), any (görünür süzgeç var mı), set({il,ilce,tur,q}) } */
+function schoolFilterBar(schools, onChange) {
+  const all = (schools || []).slice().sort((a, b) => String(a.okulAdi).localeCompare(String(b.okulAdi), 'tr'));
+  const f = { il: '', ilce: '', tur: '', q: '' }, ils = spUniq(all.map(s => s.il));
+  const sel = (cls, label, change) => h('select', { class: 'sp-' + cls, 'aria-label': label, onchange: change });
+  const ilSel = sel('il', 'İl', e => { f.il = e.target.value; f.ilce = ''; f.tur = ''; paint(true); });
+  const ilceSel = sel('ilce', 'İlçe', e => { f.ilce = e.target.value; f.tur = ''; paint(true); });
+  const turSel = sel('tur', 'Okul düzeyi', e => { f.tur = e.target.value; paint(true); });
+  let timer = 0;
+  const q = h('input', { type: 'search', class: 'sp-q', placeholder: 'Okul adı / kodu ara…', 'aria-label': 'Okul ara', autocomplete: 'off', oninput: e => { f.q = e.target.value; clearTimeout(timer); timer = setTimeout(() => paint(true), 200); } });
+  const count = h('span', { class: 'sp-n small muted', 'aria-live': 'polite' });
+  const el = h('div', { class: 'sp-bar' }, ilSel, ilceSel, turSel, q, count);
+  const inArea = s => (!f.il || s.il === f.il) && (!f.ilce || s.ilce === f.ilce);
+  const list = () => { const t = spNorm(f.q).trim(); return all.filter(s => inArea(s) && (!f.tur || s.tur === f.tur) && (!t || spNorm(s.okulAdi + ' ' + s.okulKodu + ' ' + s.ilce + ' ' + s.il).includes(t))); };
+  const fillSel = (node, first, vals, cur) => { clear(node).append(h('option', { value: '' }, first), ...vals.map(v => h('option', { value: v }, v))); node.value = vals.indexOf(cur) >= 0 ? cur : ''; return node.value; };
+  const paint = user => {
+    fillSel(ilSel, 'Tüm iller', ils, f.il); f.il = ilSel.value;
+    const ilceVals = spUniq(all.filter(s => !f.il || s.il === f.il).map(s => s.ilce)); f.ilce = fillSel(ilceSel, 'Tüm ilçeler', ilceVals, f.ilce);
+    const turVals = spUniq(all.filter(inArea).map(s => s.tur)); f.tur = fillSel(turSel, 'Tüm düzeyler', turVals, f.tur);
+    ilSel.hidden = ils.length < 2; ilceSel.hidden = ilceVals.length < 2; turSel.hidden = turVals.length < 2 && !f.tur; q.hidden = all.length < 8 && !f.q;
+    const l = list(), active = !!(f.il || f.ilce || f.tur || f.q);
+    count.textContent = active || all.length >= 8 ? `${l.length} okul` : ''; count.hidden = !count.textContent;
+    onChange && onChange(l, !!user);
+  };
+  paint(false);
+  return { el, list, get any() { return !(ilSel.hidden && ilceSel.hidden && turSel.hidden && q.hidden); }, set(v) { Object.assign(f, v || {}); paint(true); } };
+}
+/** Var olan okul <select>'ini süzgeçli hale getirir (id, value, change olayı aynen çalışır). Seçenek yoksa/tek okul varsa select'i olduğu gibi döndürür.
+ *  Dönen öğeyi sayfaya koyun. İlk seçenek value="" ise yer tutucu olarak korunur. */
+function schoolPicker(sel, schools) {
+  if (sel.disabled || !schools || schools.length < 2) return sel;
+  const ph = sel.querySelector('option[value=""]'), phText = ph ? ph.textContent : '', init = sel.value;
+  let bar = null;
+  const fill = (list, user) => {
+    const cur = sel.value, sameIlce = new Set(list.map(s => s.ilce)).size === 1;
+    clear(sel);
+    if (ph) sel.append(h('option', { value: '' }, phText));
+    if (!list.length) sel.append(h('option', { value: '', disabled: true }, '(bu süzgeçle okul yok)'));
+    list.forEach(s => sel.append(h('option', { value: s.okulKodu }, sameIlce ? `${s.okulAdi} (${s.okulKodu})` : schoolLabel(s))));
+    if (list.some(s => String(s.okulKodu) === String(cur))) sel.value = cur; else if (!ph && list.length) sel.value = String(list[0].okulKodu); else sel.value = '';
+    if (user && sel.value !== cur && !(list.length === 0 && !ph)) sel.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+  bar = schoolFilterBar(schools, fill);
+  if (!bar.any) { fill(schools.slice().sort((a, b) => String(a.okulAdi).localeCompare(String(b.okulAdi), 'tr')), false); if (init) sel.value = init; return sel; }
+  if (init) sel.value = init;
+  sel.classList.add('sp-main');
+  const box = h('div', { class: 'sp' }, bar.el, sel); box.select = sel; box.bar = bar; return box;
+}
 async function getStudents(okulKodu) {
   try { return (await cached('students:' + okulKodu, 'listStudents', { okulKodu: String(okulKodu) })).students || []; }
   catch (e) { return []; }

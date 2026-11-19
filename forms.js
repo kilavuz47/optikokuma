@@ -166,7 +166,7 @@ function designTab(pane, redraw) {
     } }] });
   }
   const copies = h('input', { type: 'number', min: 1, max: 500, value: 8, style: { width: '90px' } });
-  const schSel = h('select', null, h('option', { value: '' }, 'Okul seçin…'), S.schools.map(s => h('option', { value: s.okulKodu }, schoolLabel(s)))), prefill = h('input', { type: 'checkbox', checked: true }), coded = h('input', { type: 'checkbox' }), clsSel = h('select', null, h('option', { value: '' }, 'Tüm sınıflar'));
+  const schSel = h('select', null, h('option', { value: '' }, 'Okul seçin…'), S.schools.map(s => h('option', { value: s.okulKodu }, schoolLabel(s)))), prefill = h('input', { type: 'checkbox', checked: true }), coded = h('input', { type: 'checkbox' }), clsSel = h('select', null, h('option', { value: '' }, 'Tüm sınıflar')), schPick = schoolPicker(schSel, S.schools);
   let stu = []; const picked = new Set();   // seçili öğrenci numaraları (okul değişince sıfırlanır)
   const info = h('span', { class: 'small muted' }), stuQ = h('input', { type: 'search', id: 'fm-stu-q', placeholder: 'Öğrenci ara (ad, numara)…', oninput: () => paintStu() }), stuBox = h('div', { class: 'stulist', id: 'fm-stu-list' }), pickInfo = h('span', { class: 'small', id: 'fm-pick-info' });
   const printBtn = h('button', { class: 'btn primary', id: 'fm-print-personal', onclick: () => personalized() }, 'Seçilenler için yazdır');
@@ -206,7 +206,7 @@ function designTab(pane, redraw) {
       h('div', { class: 'card' }, h('h2', null, 'Yazdır'),
         h('div', { class: 'row' }, h('label', { class: 'lbl' }, 'Boş form sayfası:'), copies, h('button', { class: 'btn', id: 'fm-print-blank', onclick: () => { const n = Math.max(1, Math.min(500, +copies.value || 1)), t = build(); if (t.error) return toast(t.error, 'bad'); printForms(t, Array.from({ length: n * t.nup }, () => ({}))); } }, 'Boş formları yazdır')),
         h('hr', { style: { border: 0, borderTop: '1px solid var(--line)', margin: '1rem 0' } }),
-        h('div', { class: 'row' }, schSel, clsSel, info),
+        h('div', { class: 'row' }, schPick, clsSel, info),
         h('div', { class: 'row', style: { margin: '.5rem 0 .3rem' } }, stuQ, h('button', { class: 'btn sm', id: 'fm-pick-vis', onclick: () => { visibleStu().forEach(s => picked.add(String(s.ogrNo))); paintStu(); } }, 'Görünenleri seç'), h('button', { class: 'btn sm ghost', id: 'fm-pick-none', onclick: () => { picked.clear(); paintStu(); } }, 'Seçimi temizle'), pickInfo),
         stuBox,
         h('label', { class: 'row', style: { margin: '.5rem 0 .2rem' } }, prefill, 'Öğrenci adı, numarası ve kurum kodu kutulara yazılsın'),

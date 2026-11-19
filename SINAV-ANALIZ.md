@@ -2,6 +2,12 @@
 
 **Analiz** menüsü, sistemde okuttuğunuz sınavlarla **dışarıdan aldığınız** sınavları (yayınevi LGS/TYT denemeleri, başka kurumların sonuç listeleri) tek ekranda birlikte gösterir: doğru–yanlış–net, puan, dereceler ve **net/puan artışı**. Her sınavın hangi kaynaktan olduğu rozetle yazar: **Sistem** ya da **Dış · DARGE Yayınları** gibi.
 
+## 0) Okul seçimi (il → ilçe → düzey → okul)
+Okul listesi uzunsa her okul seçiminin üstünde süzgeçler çıkar: **İl**, **İlçe**, **Okul düzeyi** (Okul öncesi / İlkokul / Ortaokul / Lise / Diğer) ve **arama** (okul adı ya da kodu; Türkçe harf farkı yok sayılır: `yildiz` → Yıldız Ortaokulu). Süzgeçler birbirine bağlıdır: il seçince ilçe listesi o ilin ilçelerine, düzey listesi o bölgede bulunan düzeylere iner; sağda kaç okul kaldığı yazar. Aşağıdaki okul kutusu yalnızca süzülen okulları gösterir. Seçili okul süzgeç dışında kalırsa listedeki ilk okula geçilir.
+- Süzgeçler **dış sınav ekleme**, **Analiz**, **Formlar** (form tasarla/yazdır ve kodlu baskı), **Veli WhatsApp**, **Yönetim → Öğrenciler** ve **Yönetim → Okullar** (kayıtlı okullar tablosu) ekranlarındadır.
+- Ayırt edici olmayan süzgeç görünmez: yalnızca bir okulu olan kullanıcıda (okul yöneticisi/öğretmen) hiç süzgeç çıkmaz; tek il varsa il kutusu çıkmaz; 8'den az okul varsa arama kutusu çıkmaz.
+- Okul **eklemek** için: Yönetim → Okullar → "+ Okul ekle" (il, ilçe, düzey yazılır) ya da Excel'den toplu yapıştırma.
+
 ## 1) Dış sınav ekleme
 
 **Analiz → + Dış sınav ekle.** Üç yol vardır; hepsi aynı ekranda:
@@ -57,4 +63,4 @@ Her sekmede **Excel** ve **Yazdır** vardır (yazdırmada menü ve düğmeler gi
 - Veriler E-Tablodaki **DisSinav** ve **DisSonuc** sayfalarında tutulur (kod ilk istekte kendiliğinden oluşturur; veri silmez).
 
 ## 4) Kurulum / güncelleme
-`Code.gs`'yi Apps Script'e yapıştırıp **yeni sürüm dağıtın** (şema `6-dis`: iki yeni sayfa eklenir). Siteyi güncelledikten sonra tarayıcıyı bir kez yenileyin (servis çalışanı `optik-v13`). Menüde **Analiz** düğmesi görünür.
+`Code.gs`'yi Apps Script'e yapıştırıp **yeni sürüm dağıtın** (şema `6-dis`: iki yeni sayfa eklenir). Siteyi güncelledikten sonra tarayıcıyı bir kez yenileyin (servis çalışanı `optik-v14`). Menüde **Analiz** düğmesi görünür.

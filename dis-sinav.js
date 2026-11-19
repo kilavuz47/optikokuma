@@ -80,7 +80,7 @@ Dis.editor = async function (opts) {
   /* ---- üst alanlar */
   const field = (label, node, cls) => h('div', { class: 'field ' + (cls || '') }, h('label', null, label), node);
   el.okul = h('select', { id: 'dx-okul', disabled: !!ex, onchange: async e => { st.okulKodu = e.target.value; st.target = ''; await loadStudents(); drawTarget(); drawSummary(); } }, schools.map(s => h('option', { value: s.okulKodu }, schoolLabel(s))));
-  el.okul.value = st.okulKodu;
+  el.okul.value = st.okulKodu; const okulPick = schoolPicker(el.okul, schools);
   el.name = h('input', { type: 'text', id: 'dx-name', value: st.name, placeholder: 'Örn: DARGE 1. LGS Denemesi', oninput: e => { st.name = e.target.value; st.touched.name = 1; } });
   el.date = h('input', { id: 'dx-date', type: 'date', value: st.date, oninput: e => { st.date = e.target.value; st.touched.date = 1; } });
   el.kaynak = h('input', { type: 'text', id: 'dx-kaynak', value: st.kaynak, list: 'dx-kaynak-list', placeholder: 'Yayınevi / kurum', oninput: e => { st.kaynak = e.target.value; st.touched.kaynak = 1; } });
@@ -100,7 +100,7 @@ Dis.editor = async function (opts) {
   }
   drawTarget();
   const head = h('div', null,
-    h('div', { class: 'grid' }, field('Okul', el.okul), field('Sınav adı', el.name), field('Tarih', el.date), field('Kaynak / kurum', el.kaynak), field('Puan adı', el.puan), field('Yanlış kuralı', penHold)),
+    h('div', { class: 'grid' }, field('Okul', okulPick, 'dx-okulfield'), field('Sınav adı', el.name), field('Tarih', el.date), field('Kaynak / kurum', el.kaynak), field('Puan adı', el.puan), field('Yanlış kuralı', penHold)),
     h('datalist', { id: 'dx-kaynak-list' }, Dis.kaynaklar().map(k => h('option', { value: k }))), targetHold);
 
   /* ---- Excel / CSV yükle sekmesi */

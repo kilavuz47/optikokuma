@@ -314,3 +314,15 @@ table.dx-grid td, table.dx-grid th { padding: .15rem .25rem; } table.dx-grid inp
 
 .row.an-f > select, .row.an-f > input { width: auto; flex: 0 1 auto; min-width: 9rem; max-width: 24rem; }
 .dx .grid { align-items: end; } .dx input[type=date] { min-height: 40px; }
+
+/* okul seçici: il → ilçe → düzey (+ arama) */
+.sp { display: flex; flex-direction: column; gap: .4rem; min-width: 0; flex: 1 1 22rem; }
+.sp-bar { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; min-width: 0; }
+.sp-bar select, .sp-bar input { width: auto; flex: 1 1 8rem; min-width: 7.5rem; max-width: 15rem; }
+.sp-bar [hidden], .sp [hidden] { display: none !important; }
+.sp-bar .sp-n { white-space: nowrap; }
+.sp > select.sp-main { width: 100%; max-width: none; }
+.row.an-f > .sp { flex: 1 1 24rem; }
+.dx .grid .dx-okulfield { grid-column: 1 / -1; }
+@media print { .sp-bar { display: none; } }
+.field > .sp, .card > .sp { flex: none; }

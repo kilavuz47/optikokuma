@@ -115,7 +115,7 @@ Not (gizlilik): yapay zekâ adımında yalnızca **boş** form görüntüsü (ü
 Anne/baba telefonu, kişiye özel sonuç mesajı ve Chrome eklentisi için bkz. **VELI-WHATSAPP.md**.
 
 ## Güncelleme sonrası
-Kodu GitHub Pages'e yükledikten sonra tarayıcıda bir kez yenileyin (servis çalışanı sürümü `optik-v13`). `Code.gs` ve `appsscript.json`'u Apps Script'e yapıştırıp **yeni sürüm dağıtın**. Mevcut kayıtlı şablonlar aynen çalışmaya devam eder.
+Kodu GitHub Pages'e yükledikten sonra tarayıcıda bir kez yenileyin (servis çalışanı sürümü `optik-v14`). `Code.gs` ve `appsscript.json`'u Apps Script'e yapıştırıp **yeni sürüm dağıtın**. Mevcut kayıtlı şablonlar aynen çalışmaya devam eder.
 
 ## Sınav analizi
 Dışarıdan alınan sınavları Excel/satır satır ekleme ve sistem sınavlarıyla birlikte analiz için bkz. **SINAV-ANALIZ.md**.

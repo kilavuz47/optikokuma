@@ -121,7 +121,7 @@ App.views.analiz = function (root) {
     if (App.state.view !== 'analiz') return;
     clear(top); clear(body); const cat = anCatalog(), sel = anSelected();
     const okulSel = h('select', { id: 'an-okul', onchange: e => { AN.okul = e.target.value; Settings.set('anOkul', AN.okul); AN.sel.clear(); AN.data.clear(); AN.selInit = false; AN.cls = ''; AN.examId = ''; init(); } }, schools.map(s => h('option', { value: s.okulKodu }, schoolLabel(s)))); okulSel.value = AN.okul;
-    top.append(h('div', { class: 'card no-print' }, h('div', { class: 'row an-f', style: { marginBottom: '.6rem' } }, h('b', null, 'Okul'), okulSel, h('span', { id: 'an-status', class: 'small muted' })), examTable(cat)));
+    top.append(h('div', { class: 'card no-print' }, h('div', { class: 'row an-f', style: { marginBottom: '.6rem' } }, h('b', null, 'Okul'), schoolPicker(okulSel, schools), h('span', { id: 'an-status', class: 'small muted' })), examTable(cat)));
     if (!sel.length) { body.append(h('div', { class: 'empty card' }, AN.loading.size ? 'Sınavlar yükleniyor…' : 'Analiz için yukarıdan en az bir sınav seçin. Dışarıdan sınav eklemek için "+ Dış sınav ekle"yi kullanın.')); return; }
     const classes = anClasses(sel), lessons = anLessons(sel); if (AN.cls && !classes.includes(AN.cls)) AN.cls = '';
     const q = h('input', { type: 'search', id: 'an-q', placeholder: 'Ad, no ara…', value: AN.q, oninput: e => { AN.q = e.target.value; renderTab(); } });

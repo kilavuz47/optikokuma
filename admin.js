@@ -34,9 +34,9 @@ function importBox(hint, onImport) {
 function schoolsTab(pane) {
   const S = App.state, list = h('div');
   const drawList = () => {
-    clear(list); const q = h('input', { type: 'search', placeholder: 'Okul ara…' }), holder = h('div');
-    const paint = () => { const t = q.value.toLocaleLowerCase('tr'); const rows = S.schools.filter(s => !t || (s.okulAdi + s.okulKodu + s.ilce + s.il).toLocaleLowerCase('tr').includes(t)); clear(holder).append(dataTable([{ k: 'okulKodu', label: 'Kod' }, { k: 'okulAdi', label: 'Okul' }, { k: 'tur', label: 'Düzey' }, { k: 'ilce', label: 'İlçe' }, { k: 'il', label: 'İl' }, S.schools.some(x => x.mudur) ? { k: 'mudur', label: 'Müdür' } : null, S.schools.some(x => x.telefon) ? { k: 'telefon', label: 'Telefon' } : null, { k: '_act', label: '', render: r => h('span', { class: 'row nowrap' }, h('button', { class: 'btn sm', 'data-act': 'edit', onclick: ev => { ev.stopPropagation(); schoolForm(r, afterChange); } }, 'Düzenle'), h('button', { class: 'btn sm danger', 'data-act': 'del', onclick: ev => { ev.stopPropagation(); deleteSchool(r, afterChange); } }, 'Sil')) }].filter(Boolean), rows, { sort: { key: 'il', dir: 1 }, limit: 300 })); };
-    q.addEventListener('input', paint); list.append(h('div', { class: 'row', style: { marginBottom: '.5rem' } }, q, h('span', { class: 'muted small' }, `${S.schools.length} okul`), h('button', { class: 'btn primary', id: 'sc-new', onclick: () => schoolForm(null, afterChange) }, '+ Okul ekle')), holder); paint();
+    clear(list); const holder = h('div');
+    const paint = rows => { clear(holder).append(dataTable([{ k: 'okulKodu', label: 'Kod' }, { k: 'okulAdi', label: 'Okul' }, { k: 'tur', label: 'Düzey' }, { k: 'ilce', label: 'İlçe' }, { k: 'il', label: 'İl' }, S.schools.some(x => x.mudur) ? { k: 'mudur', label: 'Müdür' } : null, S.schools.some(x => x.telefon) ? { k: 'telefon', label: 'Telefon' } : null, { k: '_act', label: '', render: r => h('span', { class: 'row nowrap' }, h('button', { class: 'btn sm', 'data-act': 'edit', onclick: ev => { ev.stopPropagation(); schoolForm(r, afterChange); } }, 'Düzenle'), h('button', { class: 'btn sm danger', 'data-act': 'del', onclick: ev => { ev.stopPropagation(); deleteSchool(r, afterChange); } }, 'Sil')) }].filter(Boolean), rows, { sort: { key: 'il', dir: 1 }, limit: 300 })); };
+    const bar = schoolFilterBar(S.schools, rows => paint(rows)); list.append(h('div', { class: 'row', style: { marginBottom: '.5rem' } }, bar.el, h('button', { class: 'btn primary', id: 'sc-new', onclick: () => schoolForm(null, afterChange) }, '+ Okul ekle')), holder);
   };
   const afterChange = () => drawList();
   pane.append(h('div', { class: 'card' }, h('h2', null, 'Okul ekle / güncelle'), h('p', { class: 'small muted' }, 'Excel\'den sütunları kopyalayıp yapıştırın. Sütunlar: ', h('span', { class: 'mono' }, 'okulKodu · okulAdi · il · ilce'), ' (isteğe bağlı: ', h('span', { class: 'mono' }, 'tur'), ' = Okul öncesi / İlkokul / Ortaokul / Lise; boşsa okul adından çıkarılır). Aynı kodlu okul güncellenir. Okul yöneticileri okullarını kendileri de kaydedebilir (Başvurular sekmesi).'),
@@ -57,7 +57,7 @@ function telShow(n) {
 const telChips = x => x.anneTel === undefined ? '' : h('span', { class: 'chips' }, h('span', { class: 'chip ' + (x.anneTel ? 'ok' : ''), title: x.anneTel ? 'Anne: ' + telShow(x.anneTel) : 'Anne telefonu yok' }, 'Anne'), h('span', { class: 'chip ' + (x.babaTel ? 'ok' : ''), title: x.babaTel ? 'Baba: ' + telShow(x.babaTel) : 'Baba telefonu yok' }, 'Baba'));
 
 function studentsTab(pane) {
-  const S = App.state, sel = h('select', null, h('option', { value: '' }, 'Okul seçin…'), S.schools.map(s => h('option', { value: s.okulKodu }, schoolLabel(s)))), body = h('div');
+  const S = App.state, sel = h('select', null, h('option', { value: '' }, 'Okul seçin…'), S.schools.map(s => h('option', { value: s.okulKodu }, schoolLabel(s)))), body = h('div'), pick = schoolPicker(sel, S.schools);
   if (S.user.role === 'okul' && S.schools[0]) sel.value = S.schools[0].okulKodu;
   async function load() {
     clear(body); if (!sel.value) return; Settings.set('admSchool', sel.value);
@@ -70,7 +70,7 @@ function studentsTab(pane) {
     holder.append(studentManager(code, st, load));
   }
   sel.addEventListener('change', load); const last = Settings.get('admSchool', ''); if (!sel.value && S.schools.some(s => String(s.okulKodu) === String(last))) sel.value = last;
-  pane.append(h('div', { class: 'card' }, h('div', { class: 'field' }, h('label', null, 'Okul'), sel)), body); load();
+  pane.append(h('div', { class: 'card' }, h('div', { class: 'field' }, h('label', null, 'Okul'), pick)), body); load();
 }
 
 /* ---- okul ekle / düzenle / sil (yalnızca yönetici, il ve ilçe yetkilisi; sunucu yetkiyi ayrıca denetler) */
