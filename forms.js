@@ -155,6 +155,7 @@ function designTab(pane, redraw) {
     if (!S.templates.length) { tplList.append(h('p', { class: 'small muted' }, 'Kayıtlı form şablonu yok.')); return; }
     tplList.append(h('div', { class: 'tablewrap', style: { maxHeight: '240px' } }, h('table', null, h('tbody', null, S.templates.map(t => h('tr', null, h('td', null, t.name), h('td', { class: 'small muted' }, t.json && t.json.kind === 'custom' ? 'harici form' : (t.json && t.json.opts ? `${t.json.opts.questions} soru · ${t.json.opts.nup}/sayfa` : '')),
       h('td', { class: 'right nowrap' }, t.json && t.json.kind === 'generated' ? h('button', { class: 'btn sm', onclick: () => { FM.opts = normOpts(t.json.opts); FM.templateId = t.templateId; redraw(); } }, 'Aç') : null,
+        t.json && t.json.kind === 'custom' ? h('button', { class: 'btn sm', 'data-kod': t.templateId, onclick: () => codedPrint(t) }, 'Kodlu baskı') : null,
         h('button', { class: 'btn sm danger', onclick: async () => { if (!(await confirmBox(`"${t.name}" şablonu silinsin mi? Bu şablonu kullanan sınavlar otomatik şablona döner.`, 'Sil', true))) return; try { await api('deleteTemplate', { templateId: t.templateId }); await refreshBase(); drawTpl(); } catch (e) { toast(e.message, 'bad'); } } }, 'Sil'))))))));
   }
   async function saveTpl() {

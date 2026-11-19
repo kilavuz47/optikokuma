@@ -646,7 +646,7 @@
     if (kind === 'track') warnings.push('Tek yan çizgili form: çerçeve yalnızca bir kenardaki çizgilerden ve baloncuk düzeninden kurulur. En iyi sonuç için tarayıcı kullanın; fotoğrafta formu düz ve dik açıyla çekin. Aksi hâlde okuma sırasında örtüşme düşük çıkabilir ve form reddedilir (yanlış okumaktansa).');
     if (kind === 'sides' && A.tracks[0] !== A.tracks[1]) warnings.push(`Sol ve sağ yan çizgi sayıları farklı (${A.tracks[0]} ve ${A.tracks[1]}). Silik ya da kesik bir çizgi olabilir; formun tamamı net ve düz görünmeli.`);
     return {
-      ok: true, warnings, frameKind: kind, tracks: sides ? A.tracks.slice() : null, marks: marks ? marks.map(m => [r2(m[0]), r2(m[1])]) : null, markPitch: r2(markPitch), corners: A.corners, H: fr.H, anchorSize: r2(asz), frame: { w: fr.w, h: fr.h }, anchors: fr.anchors.map(a => [r2(a[0]), r2(a[1])]), k: fr.k,
+      ok: true, warnings, frameKind: kind, tracks: sides ? A.tracks.slice() : null, marks: marks ? marks.map(m => [r2(m[0]), r2(m[1])]) : null, markPitch: r2(markPitch), corners: A.corners, H: fr.H, anchorSize: r2(asz), frame: { w: fr.w, h: fr.h }, imgSize: { w: img.w, h: img.h }, anchors: fr.anchors.map(a => [r2(a[0]), r2(a[1])]), k: fr.k,
       bsz: { w: r2(det.bw), h: r2(det.bh), level: det.level }, r: r2(Math.min(det.bw, det.bh) / 2), pitch: r2(Math.min(st.pitchX || 1e9, st.pitchY || 1e9)), nBubbles: total,
       blocks, bubbles: [].concat(...clusters.map(c => c.list)), rectified: { gray: fr.gray, w: fr.w, h: fr.h }
     };
@@ -848,10 +848,159 @@
       kind: 'custom', version: 3, auto: true, orient: false, nup: 1, frame: { w: an.frame.w, h: an.frame.h }, anchors: an.anchors.map(a => a.slice()), anchorSize: an.anchorSize, r: rr, pitch: an.pitch || rr / 0.38,
       bsz: { w: r2(refW), h: r2(refH), level: an.bsz.level }, questions: q - 1, choices, digits, schoolDigits, booklets, groups, decor: [], lessons: secs.map(s => ({ name: s.name, count: s.count })), nameLen: nameLens.name, surnameLen: nameLens.surname
     };
+    if (an.imgSize && an.H && an.H.length === 9) tpl.page = { w: an.imgSize.w, h: an.imgSize.h, H: Array.from(an.H).map(v => +(+v).toPrecision(10)) };   // kodlu baskı: çerçeve piksel → taranan boş formun pikseli
     if ((an.frameKind === 'sides' || an.frameKind === 'track') && an.marks) { tpl.frameKind = an.frameKind; tpl.marks = an.marks.map(m => m.slice()); tpl.markPitch = an.markPitch; tpl.tracks = an.tracks.slice(); }
     if (secs.length > 1 || (secs.length === 1 && bl.some(b => b.name))) tpl.opts = { sections: secs.map(s => ({ name: s.name, count: s.count })) };   // inceleme penceresinde ders başlıkları
     return { tpl };
   }
+
+  /* ------------------------------------------------------------------ sınav ↔ form soru eşlemesi
+   * Formdaki ders blokları (örn. 3 × 20 soru) ile sınavdaki ders soru sayıları (örn. Türkçe 10, Matematik 21) aynı olmak zorunda değil.
+   * Varsayılan: her sınav dersi formdaki ADI TUTAN (yoksa sıradaki) ders bloğunun ilk satırından başlar; kullanılmayan satırlar yok sayılır.
+   * Bir ders bloğundan fazla soru içerirse taşan sorular sonraki bloğun satırlarına geçer ve sonraki ders bu satırların ardından başlar.
+   * map: sınav bölümüne göre [{ l: form ders indeksi (-1/boş = otomatik), s: dersin kaçıncı satırından başlayacağı (0 tabanlı) }]            */
+  const NORM_TR = { 'ı': 'i', 'İ': 'i', 'ş': 's', 'Ş': 's', 'ğ': 'g', 'Ğ': 'g', 'ü': 'u', 'Ü': 'u', 'ö': 'o', 'Ö': 'o', 'ç': 'c', 'Ç': 'c' };
+  const normName = t => String(t || '').replace(/[ıİşŞğĞüÜöÖçÇ]/g, c => NORM_TR[c]).toLowerCase().replace(/[^a-z0-9]+/g, '');
+  /** formLessons: [{name,count}] ; sections: [{name,count}] → { ok, slots[examQ-1] = formQ (1 tabanlı), plan[], problems[], unused, formTotal } */
+  function formSlots(sections, formLessons, map) {
+    const secs = (sections || []).map(s => ({ name: String(s.name || ''), count: Math.max(0, Math.round(+s.count || 0)) })), L = (formLessons || []).map(l => ({ name: String(l.name || ''), count: Math.max(0, Math.round(+l.count || 0)) }));
+    const starts = [], ends = []; let ft = 0; L.forEach(l => { starts.push(ft); ft += l.count; ends.push(ft); });
+    const mp = Array.isArray(map) ? map : [], used = new Set(), problems = [], plan = [];
+    mp.forEach((m, i) => { if (i < secs.length && m && m.l >= 0 && m.l < L.length) used.add(m.l | 0); });
+    const nameMatch = nm => {
+      const n = normName(nm); if (!n) return -1;
+      for (let i = 0; i < L.length; i++) if (!used.has(i) && normName(L[i].name) === n) return i;
+      for (let i = 0; i < L.length; i++) { const f = normName(L[i].name); if (!used.has(i) && f.length >= 3 && n.length >= 3 && (f.includes(n) || n.includes(f))) return i; }
+      return -1;
+    };
+    let prevEnd = 0, lastLi = -1; const slots = [], owner = [];
+    secs.forEach((sc, i) => {
+      const m = mp[i] || {}, hasL = m.l >= 0 && m.l < L.length, off = Math.max(0, (m.s | 0) || 0), explicit = hasL || off > 0;
+      let li = -1;
+      if (hasL) li = m.l | 0;
+      else { li = nameMatch(sc.name); if (li < 0) { let c = lastLi + 1; while (c < L.length && used.has(c)) c++; li = c < L.length ? c : -1; } if (li >= 0) used.add(li); }
+      let start = li >= 0 ? starts[li] + off : prevEnd, shifted = false;
+      if (!explicit && li >= 0 && start < prevEnd) { start = prevEnd; shifted = true; }   // önceki ders taştıysa onun ardından başla
+      if (li >= 0) lastLi = li;
+      const end = start + sc.count, liEnd = li >= 0 ? ends[li] : ft, from = li >= 0 ? start - starts[li] + 1 : start + 1;
+      let endLi = li; while (endLi >= 0 && endLi < L.length - 1 && end > ends[endLi]) endLi++;
+      plan.push({ sec: i, name: sc.name, count: sc.count, lesson: li, lessonName: li >= 0 ? L[li].name : '', start, end, from, to: from + sc.count - 1, spill: li >= 0 && end > liEnd, shifted, explicit, lessonCount: li >= 0 ? L[li].count : 0, lastLesson: endLi });
+      for (let k = 0; k < sc.count; k++) { slots.push(start + k + 1); owner.push(i); }
+      prevEnd = Math.max(prevEnd, end);
+    });
+    plan.forEach(p => {
+      if (p.end > ft) problems.push(`${p.name || 'Bölüm ' + (p.sec + 1)}: ${p.count} soru formda kalan ${Math.max(0, ft - p.start)} satıra sığmıyor (formda toplam ${ft} soru satırı var).`);
+    });
+    const taken = new Map();
+    plan.forEach(p => { for (let q = p.start; q < p.end && q < ft; q++) { if (taken.has(q)) { const o = taken.get(q); if (o !== p.sec) { problems.push(`${plan[o].name || 'Bölüm ' + (o + 1)} ile ${p.name || 'Bölüm ' + (p.sec + 1)} aynı form satırlarını kullanıyor (form satırı ${q + 1}).`); return; } } else taken.set(q, p.sec); } });
+    const total = slots.length;
+    return { ok: problems.length === 0 && total > 0, slots, plan, problems: Array.from(new Set(problems)), unused: Math.max(0, ft - taken.size), formTotal: ft, total };
+  }
+
+  /** Şablonu sınavın ders/soru yapısına göre yeniden numaralar: yalnız kullanılan form satırları kalır; soru no = sınav soru no.
+   *  Dönen şablonu okuma, inceleme ve kamera aynen kullanır (cevaplar doğrudan sınav sırasındadır). */
+  function projectTemplate(tpl, sections, map) {
+    const lessons = tpl.lessons && tpl.lessons.length ? tpl.lessons : [{ name: '', count: tpl.questions }];
+    const fs = formSlots(sections, lessons, map); if (!fs.ok) return { error: fs.problems.join(' ') || 'Soru eşlemesi kurulamadı.', fs };
+    const inv = new Map(); fs.slots.forEach((fq, i) => inv.set(fq, i + 1));
+    const secOf = []; fs.plan.forEach(p => { for (let k = 0; k < p.count; k++) secOf.push(p.sec); });
+    const secStart = []; { let q = 1; sections.forEach((s, i) => { secStart[i] = q; q += s.count; }); }
+    const groups = []; let gi = 0;
+    tpl.groups.forEach(g => {
+      if (g.role !== 'questions') { groups.push(g); return; }
+      const col = g.axis === 'col', arr = col ? g.xs : g.ys; let i = 0;
+      while (i < arr.length) {
+        const q0 = inv.get(g.qStart + i); if (!q0) { i++; continue; }
+        let j = i; while (j + 1 < arr.length && inv.get(g.qStart + j + 1) === inv.get(g.qStart + j) + 1 && secOf[inv.get(g.qStart + j + 1) - 1] === secOf[q0 - 1]) j++;
+        const si = secOf[q0 - 1], ng = Object.assign({}, g, { id: 'q' + gi++, qStart: q0, sec: si, secQ0: secStart[si], numStart: q0 - secStart[si] + 1 });
+        if (col) ng.xs = g.xs.slice(i, j + 1); else ng.ys = g.ys.slice(i, j + 1);
+        groups.push(ng); i = j + 1;
+      }
+    });
+    const secsOut = sections.map(s => ({ name: s.name, count: s.count }));
+    const out = Object.assign({}, tpl, { groups, questions: fs.total, lessons: secsOut, projected: true, formQuestions: tpl.questions, slots: fs.slots });
+    out.opts = Object.assign({}, tpl.opts || {}, { sections: secsOut }); if (sections.length <= 1) delete out.opts.sections;
+    return { tpl: out, fs };
+  }
+
+  /* ------------------------------------------------------------------ kodlu baskı (hazır formun üzerine, milimetrik)
+   * Boş formun taramasından çıkan şablon, her baloncuğun çerçeve pikseli konumunu bilir. Bu konumlar tarama → kâğıt ölçeğiyle (tam sayfa tarama ya da dpi)
+   * milimetreye çevrilir; öğrenci no, kurum kodu, ad–soyad ve kitapçık baloncukları DOLU olarak, yalnız onlar basılır. Yazıcı payı için kaydırma/ölçek ayarı vardır.
+   * cal: { paper:'A4'|'A5'|'A3'|'Letter'|'custom', pw, ph, dpi (0 = tam sayfa), dx, dy (mm), sx, sy (%), dot (baloncuk doluluk oranı) , frameMm:{x,y,w,h} (sayfa bilgisi yoksa) } */
+  const PAPERS = { A3: [297, 420], A4: [210, 297], A5: [148, 210], Letter: [215.9, 279.4] };
+  const trUpper = t => String(t == null ? '' : t).toLocaleUpperCase('tr');
+  const FOLD = { 'Ç': 'C', 'Ğ': 'G', 'İ': 'I', 'Ö': 'O', 'Ş': 'S', 'Ü': 'U', 'Â': 'A', 'Î': 'I', 'Û': 'U' };
+  function overlayMap(tpl, cal) {
+    cal = Object.assign({ paper: 'A4', pw: 210, ph: 297, dpi: 0, dx: 0, dy: 0, sx: 100, sy: 100, dot: 0.86 }, cal || {});
+    let [w, h] = cal.paper === 'custom' ? [Math.max(50, +cal.pw || 210), Math.max(50, +cal.ph || 297)] : (PAPERS[cal.paper] || PAPERS.A4);
+    const pg = tpl.page, warn = []; let land = false;
+    if (pg) land = pg.w > pg.h; else land = !!cal.landscape;
+    [w, h] = land ? [Math.max(w, h), Math.min(w, h)] : [Math.min(w, h), Math.max(w, h)];
+    let base;
+    if (pg && pg.H && pg.H.length === 9) {
+      const dpi = +cal.dpi > 0 ? +cal.dpi : 0, kx = dpi ? 25.4 / dpi : w / pg.w, ky = dpi ? 25.4 / dpi : h / pg.h;
+      if (!dpi) { const ar = (pg.w / pg.h) / (w / h); if (Math.abs(ar - 1) > 0.04) warn.push(`Taranan görüntünün en-boy oranı seçilen kâğıtla (${cal.paper}) uyuşmuyor; tarama sayfanın tamamını kapsamıyor olabilir. "Tarama çözünürlüğü (dpi)" girin ya da kâğıt boyutunu değiştirin.`); }
+      base = (x, y) => { const q = OMR.applyH(pg.H, x, y); return [q[0] * kx, q[1] * ky]; };
+    } else {
+      const f = cal.frameMm, a = tpl.anchors && tpl.anchors.length >= 4 ? tpl.anchors : [[0, 0], [tpl.frame.w, 0], [tpl.frame.w, tpl.frame.h], [0, tpl.frame.h]];
+      if (!f || !(f.w > 0) || !(f.h > 0)) return { error: 'Bu şablonda tarama (sayfa) bilgisi yok; milimetre ölçüsü bilinmiyor. Boş formu "Otomatik tanıt" sekmesinde yeniden çözümleyip şablonu güncelleyin ya da çerçevenin ölçüsünü elle girin.' };
+      const ax = a[1][0] - a[0][0], ay = a[3][1] - a[0][1]; base = (x, y) => [f.x + (x - a[0][0]) / ax * f.w, f.y + (y - a[0][1]) / ay * f.h];
+      warn.push('Şablonda tarama bilgisi yok; ölçü elle girilen çerçeve ölçüsünden hesaplanıyor.');
+    }
+    const sx = (+cal.sx || 100) / 100, sy = (+cal.sy || 100) / 100, dx = +cal.dx || 0, dy = +cal.dy || 0;
+    const fn = (x, y) => { const q = base(x, y); return [q[0] * sx + dx, q[1] * sy + dy]; };
+    const c0 = fn(tpl.frame.w / 2, tpl.frame.h / 2), c1 = fn(tpl.frame.w / 2 + 100, tpl.frame.h / 2), c2 = fn(tpl.frame.w / 2, tpl.frame.h / 2 + 100);
+    const mmx = Math.hypot(c1[0] - c0[0], c1[1] - c0[1]) / 100, mmy = Math.hypot(c2[0] - c0[0], c2[1] - c0[1]) / 100;
+    return { fn, paper: [w, h], mmPerPx: (mmx + mmy) / 2, mmx, mmy, warn, land };
+  }
+  const linesOf = g => g.axis === 'col' ? g.xs.length : g.ys.length;
+  const spotAt = (g, i, j) => g.axis === 'col' ? [g.xs[i], g.ys[j]] : [g.xs[j], g.ys[i]];
+  function labelIndex(g, ch) { let j = g.labels.indexOf(ch); if (j < 0 && FOLD[ch]) j = g.labels.indexOf(FOLD[ch]); return j; }
+  /** Bir öğrencinin dolu olacak baloncukları (çerçeve pikseli) ve uyarıları.
+   *  d: { studentNo, schoolCode, name, surname, booklet }; opts: { noAlign:'left'|'right', pad0Code:true } */
+  function fillSpots(tpl, d, opts) {
+    opts = Object.assign({ noAlign: 'left' }, opts || {}); d = d || {}; const spots = [], notes = [], seen = {};
+    const put = (g, i, j, role) => { const p = spotAt(g, i, j); spots.push({ x: p[0], y: p[1], r: g.r || tpl.r, role }); };
+    const digitsInto = (g, str, role, label) => {
+      const n = linesOf(g); let s = String(str || '').replace(/\D/g, ''); if (!s) return;
+      if (s.length > n) { notes.push(`${label} ${s.length} haneli, formda ${n} sütun var (fazlası kesildi).`); s = s.slice(0, n); }
+      if (opts.noAlign === 'right') s = s.padStart(n, ' ');
+      for (let i = 0; i < s.length; i++) { if (s[i] === ' ') continue; const j = g.labels.indexOf(s[i]); if (j >= 0) put(g, i, j, role); }
+    };
+    const textInto = (g, str, role, label) => {
+      const n = linesOf(g), s = Array.from(trUpper(str).replace(/\s+/g, ' ').trim()); if (!s.length) return;
+      if (s.length > n) notes.push(`${label} "${s.join('')}" ${s.length} harf; formda ${n} sütun var (fazlası kesildi).`);
+      s.slice(0, n).forEach((ch, i) => { if (ch === ' ') return; const j = labelIndex(g, ch); if (j >= 0) put(g, i, j, role); else if (!seen[ch]) { seen[ch] = 1; notes.push(`${label}: "${ch}" harfi formda yok (atlandı).`); } });
+    };
+    const gName = tpl.groups.find(g => g.role === 'name'), gSur = tpl.groups.find(g => g.role === 'surname');
+    for (const g of tpl.groups) {
+      if (g.role === 'studentNo' && d.studentNo != null && d.studentNo !== '') digitsInto(g, d.studentNo, 'studentNo', 'Öğrenci no');
+      else if (g.role === 'schoolCode' && d.schoolCode != null && d.schoolCode !== '') digitsInto(g, String(d.schoolCode).replace(/\D/g, '').padStart(linesOf(g), '0').slice(-linesOf(g)), 'schoolCode', 'Kurum kodu');
+      else if (g.role === 'booklet' && d.booklet) { const j = g.labels.indexOf(String(d.booklet).toUpperCase()); if (j >= 0) put(g, 0, j, 'booklet'); }
+    }
+    // ad–soyad: iki ayrı blok varsa ayrı ayrı; tek blok varsa "AD SOYAD" art arda (arada boş sütun); yalnız soyad bloğu varsa soyad
+    if (gName && gSur) { if (d.name) textInto(gName, d.name, 'name', 'Ad'); if (d.surname) textInto(gSur, d.surname, 'surname', 'Soyad'); }
+    else if (gName) { const full = [d.name, d.surname].filter(Boolean).join(' '); if (full) textInto(gName, full, 'name', 'Ad soyad'); }
+    else if (gSur && d.surname) textInto(gSur, d.surname, 'surname', 'Soyad');
+    return { spots, notes };
+  }
+  /** Tek sayfa SVG (mm). mode: 'fill' = yalnız dolu baloncuklar · 'test' = hizalama sayfası (tüm baloncuk halkaları + çerçeve işaretlerinde artı + dolu baloncuklar) */
+  function overlaySVG(tpl, d, cal, opts) {
+    opts = Object.assign({ mode: 'fill', color: '#000' }, opts || {}); const m = overlayMap(tpl, cal); if (m.error) return { error: m.error };
+    cal = Object.assign({ dot: 0.86 }, cal || {}); const [W, H] = m.paper, out = [`<svg xmlns="http://www.w3.org/2000/svg" width="${W}mm" height="${H}mm" viewBox="0 0 ${W} ${H}"><rect width="${W}" height="${H}" fill="#fff"/>`];
+    const f = n => (+n).toFixed(3), fs = opts.mode === 'test' ? fillSpots(tpl, d || {}, opts) : fillSpots(tpl, d || {}, opts);
+    if (opts.mode === 'test') {
+      const sw = Math.max(0.08, m.mmPerPx * (tpl.r || 10) * 0.07);
+      for (const g of tpl.groups) { const r = (g.r || tpl.r) * m.mmPerPx; for (let ri = 0; ri < g.ys.length; ri++) for (let ci = 0; ci < g.xs.length; ci++) { const p = m.fn(g.xs[ci], g.ys[ri]); out.push(`<circle cx="${f(p[0])}" cy="${f(p[1])}" r="${f(r)}" fill="none" stroke="#c0392b" stroke-width="${f(sw)}"/>`); } }
+      const pts = (tpl.marks && tpl.marks.length ? tpl.marks : tpl.anchors || []).concat(tpl.anchors || []), L = 3;
+      for (const a of pts) { const p = m.fn(a[0], a[1]); out.push(`<path d="M${f(p[0] - L)} ${f(p[1])}H${f(p[0] + L)}M${f(p[0])} ${f(p[1] - L)}V${f(p[1] + L)}" stroke="#2c6fbb" stroke-width="0.15" fill="none"/>`); }
+      out.push(`<text x="${f(W / 2)}" y="${f(H - 4)}" font-size="2.3" text-anchor="middle" font-family="Arial,sans-serif" fill="#2c6fbb">HİZALAMA TESTİ · ${esc(cal.paper === 'custom' ? W + '×' + H + ' mm' : cal.paper)} · kaydırma ${(+cal.dx || 0).toFixed(1)} / ${(+cal.dy || 0).toFixed(1)} mm · ölçek %${(+cal.sx || 100).toFixed(2)} / %${(+cal.sy || 100).toFixed(2)} — kırmızı halka = baloncuk, mavi artı = işaret; formla üst üste denk gelmeli</text>`);
+    }
+    const dotR = Math.max(0.05, +cal.dot || 0.86);
+    for (const s of fs.spots) { const p = m.fn(s.x, s.y); out.push(`<ellipse cx="${f(p[0])}" cy="${f(p[1])}" rx="${f(s.r * m.mmx * dotR)}" ry="${f(s.r * m.mmy * dotR)}" fill="${opts.color}"/>`); }
+    out.push('</svg>'); return { svg: out.join(''), notes: fs.notes, warn: m.warn, spots: fs.spots.length, paper: m.paper };
+  }
+  function esc(t) { return String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
   /* ------------------------------------------------------------------ şablonla eşleştirme */
   function matchScore(rec, tpl, s) {
@@ -915,5 +1064,5 @@
     const res = OMR.readPage(img, tpl, opts); res.fit = info; return res;
   }
 
-  return { LEVELS, ROLE_TR, ALPHA_TR, defaultAlphabet, findAnchors, findSideMarks, findTrack, homographyLS, toFrame, detectBubbles, structure, analyze, splitBlock, refit, moveBlock, stretchEdge, addLines, setGrid, resizeBubbles, snapBlock, blockFromRect, regridBlock, mergeBlocks, suggestSplit, splitIndexAt, tidy, newBlock, labelsOf, labelAxis, bubblesIn, nearestBubble, readingOrder, glyphStyle, makeTemplate, fit, identify, readAuto, matchScore };
+  return { LEVELS, ROLE_TR, ALPHA_TR, defaultAlphabet, findAnchors, findSideMarks, findTrack, homographyLS, toFrame, detectBubbles, structure, analyze, splitBlock, refit, moveBlock, stretchEdge, addLines, setGrid, resizeBubbles, snapBlock, blockFromRect, regridBlock, mergeBlocks, suggestSplit, splitIndexAt, tidy, newBlock, labelsOf, labelAxis, bubblesIn, nearestBubble, readingOrder, glyphStyle, makeTemplate, formSlots, projectTemplate, normName, overlayMap, fillSpots, overlaySVG, PAPERS, fit, identify, readAuto, matchScore };
 });

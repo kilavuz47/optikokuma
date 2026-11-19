@@ -56,6 +56,29 @@ Elle düzeltilen bloklar listede "✎ elle" etiketi taşır. Özet bölümü; ü
 
 Dokunmatik ekranda: çerçevenin üstünde parmakla sürükleme blok taşır (boşlukta sayfa kayar); milimetrik ayar için düğmeler daha rahattır.
 
+## Formdaki soru sayısı ≠ sınavdaki soru sayısı (ders bazlı eşleme)
+Yayınevi formlarında her ders genelde aynı sayıda satır taşır (örn. 3 blok × 20 satır); sınavınız ise farklı olabilir (Türkçe 10, Din 5, Matematik 21…). Sistem bunu **birebir tutmasa da** okur:
+- **Sınavlar → Cevap anahtarı** artık **ders ders** girilir: her dersin kendi adıyla bir kutusu vardır (örn. `ABCDABCDAB`); "1..N" diye tek dizi yazılmaz. İptal soru için `*`, tanımsız için `.` kullanılır.
+- Form şablonu seçilince **"Formla eşleme"** tablosu çıkar: her sınav dersi formdaki bir bloğa ve o bloğun bir **başlangıç satırına** yerleşir. Varsayılan otomatiktir (dersler sırayla bloklara, bloğun ilk satırından); gerekirse bloğu ve başlangıç satırını elle seçersiniz ("Hepsini otomatiğe çevir" ile sıfırlanır).
+- Bloktaki **kullanılmayan satırlar okunmaz** (örn. formda 20 satır, sınavda 10 soru → ilk 10 satır). Sınav derslerinin sığmadığı bir eşleme kaydedilemez; nedeni yazılır.
+- Okutmada öğrenci cevapları **dersine göre** ayrılır ve puanlanır (ders D/Y/B/net, sıralama, karne). Okutma ekranı "formdaki 35 satır yok sayılır" gibi bir bilgi satırı gösterir.
+- Eşleme sınav kaydında saklanır (`formMap`); eşleme tanımsızsa eski davranış (birebir) aynen sürer.
+
+## Kodlanmış (kişiye özel) baskı
+Tanıtılan harici formun **üzerine**, öğrenciye ait bilgilerin **dolu baloncuk** olarak basılması: Formlar → kayıtlı formun yanındaki **Kodlu baskı**.
+1. Öğrencileri seçin (okul/sınıf süzgeci, ara, "Görünenleri seç"); doldurulacak alanları seçin: **öğrenci no, kurum kodu, ad–soyad, kitapçık**. Formda ad ve soyad **ayrı bloklarsa** ayrı, **tek blokta** ise art arda (ad, boşluk, soyad) kodlanır; sığmayan ad kısaltılır ve uyarılır. Sayı alanlarında sola ya da sağa hizalama seçilir.
+2. **Kâğıt** (A4/A3/Letter/özel) ve **tarama çözünürlüğü** (dpi): boş form sayfanın tamamı taranmışsa `0` (kâğıda göre ölçeklenir); kırpılmış taramada gerçek dpi'yi yazın.
+3. **Hizalama sayfası** ile deneyin: düz kâğıda %100 ölçekle basıp gerçek formun üstüne koyun, ışığa tutun — kırmızı halkalar form baloncuklarının üstüne gelmeli. Kayma varsa **sağa/aşağı kaydır (mm)** ve **yatay/dikey ölçek (%)** girin, yeniden deneyin; tutunca **Ayarı şablona kaydet** (sonraki baskılarda hazır gelir).
+4. **Seçilenler için yazdır**: her öğrenci ayrı sayfa; yalnızca seçili alanların baloncukları basılır (sorular ve yazılar basılmaz). Önizleme kırmızı konumları ve siyah dolu baloncukları gösterir; **Doğrulama**: üretilen baloncuklar motor tarafından geri okunarak sınanmıştır (numara, kurum kodu, ad-soyad).
+- Yalnızca otomatik tanıtılan (harici) formlarda vardır; hazır katalog formlarında kişiye özel form zaten "Form tasarla ve yazdır"dadır.
+- Yazıcı ölçeği: yazdırırken tarayıcıda **ölçek %100 / "Gerçek boyut"**, kenar boşluğu **yok** seçin; üstte-altta yazıcı kenar payı olan makinelerde dikey kaydırma ile telafi edin.
+
+## Yapay zekâ ve elle düzenleme birlikte
+İkisi aynı bloklar üzerinde, birbirini bozmadan çalışır:
+- Elle yaptığınız her ayar (blok türü, ders adı, şık harfleri, alfabe…) **kilitlenir**; yapay zekâ sonradan farklı bir öneri getirse bile onu **ezmez**. Bildirimde "Elle yaptığınız N ayar korundu" yazar, blok kartında "elle ayarınız korundu: ders adı" notu görünür.
+- Elle dokunmadığınız alanlara yapay zekâ önerisi uygulanır; bir alanı **boşaltırsanız** yapay zekâ onu yeniden önerebilir.
+- **Yapay zekâ geri al** yalnızca yapay zekânın son uygulamasını geri alır; elle ayarlar kalır. Yapay zekâ öneriden sonra geometriyi (taşıma, satır/sütun) elle düzeltmeye de devam edebilirsiniz.
+
 ## Koşullar ve sınırlar
 - Form tamamen görünmeli, düz ve gölgesiz olmalı. Tarama için en az 200 dpi.
 - Şablon **boş** formdan çıkarılır; kayıttan sonra aynı formun işaretli kopyasıyla "İşaretli bir formla dene" yapıp cevapları kâğıtla karşılaştırın (özellikle yan çizgili ve renkli formlarda).
@@ -92,4 +115,7 @@ Not (gizlilik): yapay zekâ adımında yalnızca **boş** form görüntüsü (ü
 Anne/baba telefonu, kişiye özel sonuç mesajı ve Chrome eklentisi için bkz. **VELI-WHATSAPP.md**.
 
 ## Güncelleme sonrası
-Kodu GitHub Pages'e yükledikten sonra tarayıcıda bir kez yenileyin (servis çalışanı sürümü `optik-v11`). `Code.gs` ve `appsscript.json`'u Apps Script'e yapıştırıp **yeni sürüm dağıtın**. Mevcut kayıtlı şablonlar aynen çalışmaya devam eder.
+Kodu GitHub Pages'e yükledikten sonra tarayıcıda bir kez yenileyin (servis çalışanı sürümü `optik-v13`). `Code.gs` ve `appsscript.json`'u Apps Script'e yapıştırıp **yeni sürüm dağıtın**. Mevcut kayıtlı şablonlar aynen çalışmaya devam eder.
+
+## Sınav analizi
+Dışarıdan alınan sınavları Excel/satır satır ekleme ve sistem sınavlarıyla birlikte analiz için bkz. **SINAV-ANALIZ.md**.

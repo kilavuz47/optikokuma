@@ -64,6 +64,7 @@ function icon(name) {
     scan: '<path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2"/><path d="M4 12h16"/>',
     queue: '<path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M5 19h14"/>',
     results: '<path d="M5 20V10M12 20V4M19 20v-7"/>',
+    analiz: '<path d="M4 19h16"/><path d="M5 15l4-5 3 3 5-7"/><path d="M14 6h3v3"/>',
     exams: '<path d="M7 3h8l4 4v14H7z"/><path d="M15 3v4h4M10 12h6M10 16h6"/>',
     forms: '<rect x="5" y="3" width="14" height="18" rx="2"/><circle cx="9.5" cy="9" r="1.3"/><circle cx="14.5" cy="9" r="1.3"/><circle cx="9.5" cy="14" r="1.3"/><circle cx="14.5" cy="14" r="1.3"/>',
     admin: '<circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M17 11a3 3 0 1 0 0-6M21 20c0-2.5-1.6-4.6-4-5.5"/>',
@@ -174,6 +175,15 @@ function examCfg(ex) { const c = Scoring.normalizeCfg(ex.config || {}); return c
 const DEFAULT_FOOTER = 'Sıraç AKSAN · Optik Sistem';
 const formFooter = () => String(Settings.get('formFooter', DEFAULT_FOOTER) || '');
 
+/** Harici formu sınavın ders/soru yapısına uyarlar (formda 20'şer soruluk bloklar, sınavda farklı sayılar). Birebir uyuyorsa şablon aynen döner. */
+function projectForExam(json, cfg, formMap) {
+  if (!window.OMRDetect || !OMRDetect.projectTemplate || !Array.isArray(json.groups)) return { tpl: json };
+  const pj = OMRDetect.projectTemplate(json, cfg.sections, formMap);
+  if (pj.error) return pj;
+  if (pj.fs.total === json.questions && pj.fs.slots.every((v, i) => v === i + 1)) return { tpl: json, fs: pj.fs, mapped: false };
+  return { tpl: pj.tpl, fs: pj.fs, mapped: true };
+}
+
 /** Sınavın okuma şablonunu döndürür (hazır katalog formu, kayıtlı şablon, harici form ya da otomatik). */
 function resolveTemplate(ex) {
   const cfg = examCfg(ex), id = ex.config && ex.config.templateId;
@@ -182,7 +192,10 @@ function resolveTemplate(ex) {
     if (std) return { tpl: OMR.buildTemplate(Katalog.formOpts(std.entry, { nup: std.nup, digits: std.d, schoolDigits: std.sd, examName: ex.name, footer: formFooter() })), name: `Hazır form: ${std.entry.name}${std.nup > 1 ? ` · ${std.nup}/sayfa` : ''}`, custom: false, std: true };
     const t = App.state.templates.find(x => x.templateId === id);
     if (t && t.json) {
-      if (t.json.kind === 'custom') return { tpl: t.json, name: t.name, custom: true };
+      if (t.json.kind === 'custom') {
+        const pj = projectForExam(t.json, cfg, ex.config && ex.config.formMap);
+        return pj.error ? { tpl: t.json, name: t.name, custom: true, mapError: pj.error } : { tpl: pj.tpl, name: t.name, custom: true, mapped: pj.mapped ? pj.fs : null, formQuestions: t.json.questions };
+      }
       if (t.json.kind === 'generated' && t.json.opts) return { tpl: OMR.buildTemplate(t.json.opts), name: t.name, custom: false };
     }
   }
@@ -193,7 +206,7 @@ function examFormCode(ex) { try { const t = resolveTemplate(ex).tpl; return t.ki
 
 /* ------------------------------------------------------------------ kabuk */
 const NAV = [
-  { id: 'scan', label: 'Okut', roles: null }, { id: 'queue', label: 'Kuyruk', roles: null }, { id: 'results', label: 'Sonuçlar', roles: null },
+  { id: 'scan', label: 'Okut', roles: null }, { id: 'queue', label: 'Kuyruk', roles: null }, { id: 'results', label: 'Sonuçlar', roles: null }, { id: 'analiz', label: 'Analiz', roles: null },
   { id: 'exams', label: 'Sınavlar', roles: null }, { id: 'forms', label: 'Formlar', roles: null }, { id: 'admin', label: 'Yönetim', roles: ['admin', 'il', 'ilce', 'okul'] }, { id: 'settings', label: 'Ayarlar', roles: null }
 ];
 const ROLE_LABEL = { admin: 'Yönetici', il: 'İl yetkilisi', ilce: 'İlçe yetkilisi', okul: 'Okul yöneticisi', ogretmen: 'Öğretmen' };
