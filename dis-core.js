@@ -213,7 +213,7 @@
 
   /** Dereceleri eksik satırlar için hesaplar (aynı sınav içinde, puana — yoksa nete — göre). Sonuç: { snf, okul } yerel sıralar + N'ler. */
   function localRanks(rows) {
-    const key = r => (r.puan != null ? r.puan : (r.tot && r.tot[2] != null ? r.tot[2] : -1e9));
+    const key = r => (r.puan != null ? r.puan : (r.tot && r.tot[2] != null ? r.tot[2] : (r.net != null ? r.net : -1e9)));
     const rank = (list, prop) => { const s = list.slice().sort((a, b) => key(b) - key(a)); let last = null, pos = 0; s.forEach((r, i) => { if (last === null || key(r) !== last) { pos = i + 1; last = key(r); } r[prop] = pos; r[prop + 'N'] = s.length; }); };
     const byCls = {}; rows.forEach(r => { (byCls[r.sinif || ''] = byCls[r.sinif || ''] || []).push(r); });
     rank(rows, 'lOkul'); Object.keys(byCls).forEach(k => rank(byCls[k], 'lSnf')); return rows;

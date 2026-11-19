@@ -2,7 +2,7 @@
  * Sekmeler: Sınav listesi (D/Y/N, puan, dereceler, ortalamalar) · Gelişim (net/puan artışı) · Karşılaştırma (sınav ve sınıf özetleri, grafik). */
 'use strict';
 
-const AN = { okul: '', cls: '', q: '', sel: new Set(), selInit: false, metric: 'net', lesson: '', tab: 'list', examId: '', data: new Map(), names: new Map(), loading: new Set(), sort: { key: 'puan', dir: -1 }, dsort: { key: 'ad', dir: 1 }, busyMsg: '' };
+const AN = { okul: '', cls: '', q: '', sel: new Set(), selInit: false, metric: 'net', lesson: '', tab: 'list', stu: '', stuLesson: '', ls: 'genel', autoAll: {}, examId: '', data: new Map(), names: new Map(), loading: new Set(), sort: { key: 'puan', dir: -1 }, dsort: { key: 'ad', dir: 1 }, busyMsg: '' };
 const anSumQ = L => L.reduce((a, x) => a + (x.count || 0), 0);
 const anNk = s => DisCore.nk(s);
 const anDate = d => (d ? String(d).slice(0, 10) : '');
@@ -92,6 +92,17 @@ function anSpark(vals) {
   const last = pts[pts.length - 1], c = document.createElementNS(ns, 'circle'); c.setAttribute('cx', last[0]); c.setAttribute('cy', last[1]); c.setAttribute('r', 2.5); c.setAttribute('class', 'an-dot s0'); svg.append(c); return svg;
 }
 
+/** Yazdır: uygulama kabuğu gizlenir, yalnızca analiz içeriği basılır (veli karnesindeki pt-printing kuralı). */
+function anPrint() {
+  document.body.classList.add('pt-printing');
+  const done = () => { document.body.classList.remove('pt-printing'); window.removeEventListener('afterprint', done); };
+  window.addEventListener('afterprint', done); setTimeout(() => window.print(), 50);
+}
+
+/* Sekme kayıt defteri: analiz-ogr.js öğrenci / sınıf / ders / liste sekmelerini buraya ekler. { id, label, filters:[], render(pane, sel, ctx), export(sel, ctx) } */
+const ANTABS = [];
+const AN_ORDER = ['list', 'ogr', 'sinif', 'ders', 'listeler', 'dev', 'cmp'], AN_LABEL = { list: 'Sınav listesi', dev: 'Gelişim (net artışı)', cmp: 'Karşılaştırma ve özet' };
+
 /* ---------------------------------------------------------------- görünüm */
 App.views.analiz = function (root) {
   const S = App.state, u = S.user;
@@ -115,6 +126,9 @@ App.views.analiz = function (root) {
     for (let i = 0; i < need.length; i += 3) await Promise.all(need.slice(i, i + 3).map(async e => { try { await anLoad(e); } catch (er) { AN.sel.delete(e.id); toast(`"${e.name}" yüklenemedi: ${er.message}`, 'bad'); } finally { AN.loading.delete(e.id); } }));
     if (App.state.view === 'analiz') draw();
   }
+  const selectAll = () => { anCatalog().forEach(e => AN.sel.add(e.id)); draw(); loadSelected(); };
+  const openStudent = no => { AN.stu = String(no); AN.stuLesson = ''; AN.tab = 'ogr'; if (!anCatalog().every(e => AN.sel.has(e.id))) selectAll(); else draw(); window.scrollTo(0, 0); };
+  const ctx = { renderTab: () => renderTab(), draw: () => draw(), openStudent, selectAll, loadSelected };
   function drawStatus() { const s = $('#an-status'); if (s) s.textContent = AN.loading.size ? `${AN.loading.size} sınav yükleniyor…` : ''; }
 
   function draw() {
@@ -128,12 +142,13 @@ App.views.analiz = function (root) {
     const cls = h('select', { id: 'an-cls', onchange: e => { AN.cls = e.target.value; renderTab(); } }, h('option', { value: '' }, 'Tüm sınıflar'), classes.map(c => h('option', { value: c }, c))); cls.value = AN.cls;
     const met = h('select', { id: 'an-metric', onchange: e => { AN.metric = e.target.value; renderTab(); } }, METRICS.map(([v, l]) => h('option', { value: v }, l))); met.value = AN.metric;
     const les = h('select', { id: 'an-lesson', onchange: e => { AN.lesson = e.target.value; renderTab(); } }, h('option', { value: '' }, 'Tüm dersler (toplam)'), lessons.map(l => h('option', { value: l }, l))); les.value = AN.lesson;
-    const tabs = [['list', 'Sınav listesi'], ['dev', 'Gelişim (net artışı)'], ['cmp', 'Karşılaştırma ve özet']];
-    const tb = h('div', { class: 'tabs no-print' }, tabs.map(([id, l]) => h('button', { id: 'an-tab-' + id, class: AN.tab === id ? 'active' : '', onclick: () => { AN.tab = id; draw(); } }, l)));
-    const filt = h('div', { class: 'row an-f no-print', style: { marginBottom: '.7rem' } }, q, cls, AN.tab !== 'list' ? [h('span', { class: 'small muted' }, 'Ölçüt:'), met, les] : null, h('span', { class: 'grow' }), h('button', { class: 'btn', id: 'an-xlsx', onclick: () => exportXlsx() }, '⬇ Excel'), h('button', { class: 'btn', onclick: () => window.print() }, 'Yazdır'));
+    const tabs = AN_ORDER.map(id => [id, AN_LABEL[id] || (ANTABS.find(t => t.id === id) || {}).label]).filter(t => t[1]); if (!tabs.some(t => t[0] === AN.tab)) AN.tab = 'list';
+    const tb = h('div', { class: 'tabs no-print' }, tabs.map(([id, l]) => h('button', { id: 'an-tab-' + id, class: AN.tab === id ? 'active' : '', onclick: () => { AN.tab = id; if (['ogr', 'sinif', 'ders', 'listeler'].includes(id) && !AN.autoAll[AN.okul]) { AN.autoAll[AN.okul] = true; if (!anCatalog().every(e => AN.sel.has(e.id))) { selectAll(); return; } } draw(); } }, l)));
+    const rt = ANTABS.find(t => t.id === AN.tab), fl = rt ? (rt.filters || []) : (AN.tab === 'list' ? ['q', 'cls'] : ['q', 'cls', 'metric', 'lesson']);
+    const filt = h('div', { class: 'row an-f no-print', style: { marginBottom: '.7rem' } }, fl.includes('q') ? q : null, fl.includes('cls') ? cls : null, fl.includes('metric') ? [h('span', { class: 'small muted' }, 'Ölçüt:'), met] : null, fl.includes('lesson') ? les : null, h('span', { class: 'grow' }), (!rt || rt.export) ? h('button', { class: 'btn', id: 'an-xlsx', onclick: () => exportXlsx() }, '⬇ Excel') : null, h('button', { class: 'btn', id: 'an-print', onclick: () => anPrint() }, 'Yazdır'));
     const pane = h('div', { id: 'an-pane' }); body.append(tb, filt, pane); renderTab();
   }
-  function renderTab() { const pane = $('#an-pane'); if (!pane) return; clear(pane); const sel = anSelected(); if (!sel.length) return; ({ list: tabList, dev: tabDev, cmp: tabCmp })[AN.tab](pane, sel); drawStatus(); }
+  function renderTab() { const pane = $('#an-pane'); if (!pane) return; clear(pane); const sel = anSelected(); if (!sel.length) return; const rt = ANTABS.find(t => t.id === AN.tab); if (rt) rt.render(pane, sel, ctx); else ({ list: tabList, dev: tabDev, cmp: tabCmp })[AN.tab](pane, sel); drawStatus(); }
 
   /* ---- sınav seçim tablosu */
   function examTable(cat) {
@@ -167,7 +182,7 @@ App.views.analiz = function (root) {
     const avgRow = (label, a, cls) => h('tr', { class: 'an-avg ' + cls }, h('td'), h('td'), h('td', { colspan: 2 }, label), L.map((l, i) => [cell(a.sec[i] && a.sec[i][0], 0), cell(a.sec[i] && a.sec[i][1], 0), cell(a.sec[i] && a.sec[i][3])]), cell(a.D, 0), cell(a.Y, 0), cell(a.net), cell(a.puan), h('td', { colspan: 6 }));
     const rk = (r, k, lk) => r.rk[k] != null ? h('td', { class: 'num' }, r.rk[k]) : (lk && r[lk] != null ? h('td', { class: 'num an-calc', title: 'Sistemde hesaplandı' }, r[lk]) : h('td'));
     const tbody = h('tbody', null, avgRow('Genel Ortalama' + (n.avg ? '' : (n.ext ? ' (hesaplanan)' : ' (yetki alanı)')), avgG, 'g'), avgRow('Okul Ortalaması' + (n.avgOkul ? '' : ' (hesaplanan)'), avgO, 'o'),
-      rows.slice(0, 500).map(r => h('tr', { class: 'an-row', onclick: () => studentModal(r.no) }, h('td', { class: 'num' }, r.lOkul != null ? r.lOkul : ''), h('td', null, r.no), h('td', null, r.ad || h('span', { class: 'muted' }, '(adı yok)')), h('td', null, r.sinif),
+      rows.slice(0, 500).map(r => h('tr', { class: 'an-row', onclick: () => openStudent(r.no) }, h('td', { class: 'num' }, r.lOkul != null ? r.lOkul : ''), h('td', null, r.no), h('td', null, r.ad || h('span', { class: 'muted' }, '(adı yok)')), h('td', null, r.sinif),
         L.map((l, i) => [cell(r.sec[i][0], 0), cell(r.sec[i][1], 0), cell(r.sec[i][3])]), cell(r.D, 0), cell(r.Y, 0), h('td', { class: 'num' }, h('b', null, nf(r.net))), h('td', { class: 'num' }, r.puan == null ? '' : h('b', null, nf(r.puan, 3))),
         rk(r, 'snf', 'lSnf'), rk(r, 'okul', 'lOkul'), rk(r, 'ilce'), rk(r, 'il'), rk(r, 'genel'), r.rk.pct != null ? cell(r.rk.pct) : h('td'))));
     const tot = all.length, pctAvg = n.totalQ && avgO.net != null ? avgO.net / n.totalQ * 100 : null;
@@ -201,7 +216,7 @@ App.views.analiz = function (root) {
     data = data.slice().sort((a, b) => { const x = gv(a), y = gv(b); if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1; return (typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), 'tr', { numeric: true })) * dir; });
     const sh = (label, key, cls) => h('th', { class: 'sortable ' + (cls || ''), title: 'Sırala', onclick: () => { AN.dsort.dir = AN.dsort.key === key ? -AN.dsort.dir : (key === 'ad' || key === 'no' || key === 'sinif' ? 1 : -1); AN.dsort.key = key; renderTab(); } }, label + (AN.dsort.key === key ? (AN.dsort.dir > 0 ? ' ▲' : ' ▼') : ''));
     const thead = h('thead', null, h('tr', null, sh('Ö.No', 'no'), sh('İsim', 'ad'), sh('Sınıf', 'sinif'), sel.map(n => h('th', { class: 'center', title: `${n.name} · ${n.kaynak}` }, h('div', null, n.name.length > 18 ? n.name.slice(0, 17) + '…' : n.name), h('div', { class: 'small', style: { fontWeight: 400 } }, anFmtDate(n.date) + (n.ext ? ' · dış' : '')))), sh('Son değişim', 'step', 'center'), sh('İlk → son', 'chg', 'center'), h('th', { class: 'center' }, 'Gidiş')));
-    const tbody = h('tbody', null, data.slice(0, 600).map(o => h('tr', { class: 'an-row', onclick: () => studentModal(o.no) }, h('td', null, o.no), h('td', null, o.ad || h('span', { class: 'muted' }, '(adı yok)')), h('td', null, o.sinif),
+    const tbody = h('tbody', null, data.slice(0, 600).map(o => h('tr', { class: 'an-row', onclick: () => openStudent(o.no) }, h('td', null, o.no), h('td', null, o.ad || h('span', { class: 'muted' }, '(adı yok)')), h('td', null, o.sinif),
       o.vals.map((v, i) => h('td', { class: 'num' }, v == null ? h('span', { class: 'muted' }, '–') : [h('div', null, anFmt(v, metric)), anDelta(o.deltas[i], metric)])),
       h('td', { class: 'num' }, anDelta(o.step, metric)), h('td', { class: 'num' }, anDelta(o.chg, metric)), h('td', { class: 'center' }, anSpark(o.vals)))));
     pane.append(h('div', { class: 'tablewrap an-list', style: { marginTop: '.7rem' } }, h('table', { class: 'an-table', id: 'an-dev' }, thead, tbody)), data.length > 600 ? h('div', { class: 'small muted' }, 'İlk 600 satır gösteriliyor; hepsi için Excel indirin.') : null,
@@ -235,22 +250,10 @@ App.views.analiz = function (root) {
       h('tbody', null, clsList.map(c => { const vs = sel.map(n => { const rs = anRows(n).filter(r => r.sinif === c).map(r => anVal(r, n, metric, lesson)).filter(v => v != null); return rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : null; }); const nn = vs.filter(v => v != null); return h('tr', null, h('td', null, c), vs.map((v, i) => { const p = vs.slice(0, i).reverse().find(x => x != null); return h('td', { class: 'num' }, v == null ? h('span', { class: 'muted' }, '–') : [h('div', null, anFmt(v, metric)), anDelta(p == null ? null : v - p, metric)]); }), h('td', { class: 'num' }, nn.length > 1 ? anDelta(nn[nn.length - 1] - nn[0], metric) : '')); }))))));
   }
 
-  /* ---- öğrenci gelişimi */
-  function studentModal(no) {
-    const sel = anSelected().sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999')), items = sel.map(n => ({ n, r: anRows(n).find(r => r.no === no) })).filter(x => x.r); if (!items.length) return;
-    const ad = (items.map(x => x.r.ad).filter(Boolean).pop()) || ('Öğrenci ' + no), sinif = items.map(x => x.r.sinif).filter(Boolean).pop() || '', L = anLessons(items.map(x => x.n));
-    let pn = null, pp = null;
-    const rows = items.map(({ n, r }) => { const dn = pn == null || r.net == null ? null : r.net - pn, dp = pp == null || r.puan == null ? null : r.puan - pp; if (r.net != null) pn = r.net; if (r.puan != null) pp = r.puan; return h('tr', null, h('td', { class: 'nowrap' }, anFmtDate(n.date)), h('td', null, n.name), h('td', null, badge({ ext: n.ext, kaynak: n.kaynak })), h('td', { class: 'num' }, `${r.D ?? ''}/${r.Y ?? ''}`), h('td', { class: 'num' }, h('b', null, nf(r.net))), h('td', { class: 'num' }, anDelta(dn, 'net')), h('td', { class: 'num' }, r.puan == null ? '' : nf(r.puan)), h('td', { class: 'num' }, anDelta(dp, 'puan')), h('td', { class: 'num' }, r.rk.okul != null ? r.rk.okul : (r.lOkul || '')), L.map(l => { const li = n.lessons.findIndex(x => anNk(x.name) === anNk(l)); const s = li < 0 ? null : r.sec[li]; return h('td', { class: 'num small' }, s ? `${s[0] ?? ''}/${s[1] ?? ''} · ${nf(s[3])}` : ''); })); });
-    const labels = items.map(x => anFmtDate(x.n.date).slice(0, 5));
-    modal(`${ad}${sinif ? ' · ' + sinif : ''} · No ${no}`, h('div', null,
-      h('div', { class: 'grid' }, h('div', null, h('div', { class: 'small muted' }, 'Net'), anChart(labels, [{ name: 'Net', pts: items.map(x => ({ y: x.r.net })) }])), h('div', null, h('div', { class: 'small muted' }, 'Puan'), anChart(labels, [{ name: 'Puan', pts: items.map(x => ({ y: x.r.puan })) }]))),
-      h('div', { class: 'tablewrap', style: { marginTop: '.7rem' } }, h('table', { class: 'an-table' }, h('thead', null, h('tr', null, ['Tarih', 'Sınav', 'Kaynak', 'D/Y', 'Net', 'Δ net', 'Puan', 'Δ puan', 'Okul sırası', ...L].map(x => h('th', null, x)))), h('tbody', null, rows))),
-      h('p', { class: 'small muted' }, 'Ders sütunları: doğru/yanlış · net.')), { size: 'full', buttons: [{ label: 'Kapat' }] });
-  }
-
   /* ---- Excel dışa aktarma */
   function exportXlsx() {
     const sel = anSelected(); if (!sel.length) return toast('Önce sınav seçin', 'warn');
+    const rt = ANTABS.find(t => t.id === AN.tab); if (rt) return rt.export ? rt.export(sel, ctx) : toast('Bu sekme için Excel yok', 'warn');
     const school = schoolByCode(AN.okul), fn = s => String(s).replace(/[^\wığüşöçİĞÜŞÖÇ -]/g, '_').slice(0, 40);
     if (AN.tab === 'list') {
       const n = sel.find(x => x.id === AN.examId) || sel[sel.length - 1], all = anRows(n); DisCore.localRanks(all); const rows = anFilter(all).sort((a, b) => (b.puan != null ? b.puan : b.net) - (a.puan != null ? a.puan : a.net)), L = n.lessons;
