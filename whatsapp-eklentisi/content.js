@@ -1,4 +1,4 @@
-/* Optik Okuma — Veli Sonuç Mesajı (WhatsApp Web içinde çalışır)  ·  v1.1.0
+/* OptiNet — Veli Sonuç Mesajı (WhatsApp Web içinde çalışır)  ·  v1.1.1
    Uygulamada Yönetim → Veli WhatsApp sekmesinden kopyalanan kuyruğu sırayla gönderir: [{ id, n, t, ad }]
    id = alıcı kimliği (gönderildi işaretlemek için) · n = ülke kodlu numara (yalnız rakam) · t = mesaj metni · ad = panelde görünen ad.
    Her mesaj arasında rastgele bekleme (en az 8 sn), günlük sınır ve sorunlu numaraları atlama vardır. */

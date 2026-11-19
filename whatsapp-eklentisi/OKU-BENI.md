@@ -1,4 +1,4 @@
-# Optik Okuma — Veli Sonuç Mesajı (WhatsApp) · Chrome eklentisi, v1.1.0
+# OptiNet — Veli Sonuç Mesajı (WhatsApp) · Chrome eklentisi, v1.1.1
 
 Uygulamanın **Yönetim → Veli WhatsApp** sekmesinde hazırlanan, her öğrenciye özel veli mesajlarını
 WhatsApp Web'de **sırayla ve aralıklı** gönderir. Mesajın içeriği (sonuç özeti + velinin sisteme nasıl gireceği)
