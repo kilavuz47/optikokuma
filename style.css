@@ -386,3 +386,85 @@ tr.og-miss td { color: var(--muted); font-style: italic; }
 .install-card { flex-wrap: wrap; } .install-card .t { flex: 1 1 11rem; }
 @media (max-width: 480px) { .install-card .btn { flex: 1 1 100%; } }
 @media print { .install-card, .install-banner, .install-top { display: none !important; } }
+
+/* ---------- Canlı arayüz: pembe vurgu, tıklama / seçim hareketleri, çalışıyor göstergesi ---------- */
+:root { --pink: #d9338a; --pink-soft: #fde8f3; --pink-wash: #fff4fa; --pink-ring: rgba(217, 51, 138, .30); --pink-ink: #8f1d58; }
+@media (prefers-color-scheme: dark) { :root { --pink: #ff7ab8; --pink-soft: #3b1a2c; --pink-wash: #2c1a25; --pink-ring: rgba(255, 122, 184, .38); --pink-ink: #ffc2de; } }
+input[type=checkbox], input[type=radio] { accent-color: var(--pink); }
+
+/* üstte ilerleme çubuğu: ağ isteği ve dosya/sınav seçimi sürerken görünür */
+#netbar { position: fixed; top: 0; left: 0; right: 0; height: 4px; z-index: 90; pointer-events: none; opacity: 0; transition: opacity .2s; overflow: hidden; background: var(--pink-ring); }
+#netbar.on { opacity: 1; }
+#netbar i { position: absolute; top: 0; bottom: 0; left: -40%; width: 40%; border-radius: 4px; background: linear-gradient(90deg, transparent, var(--pink), #ff9ccb, var(--pink), transparent); animation: netrun 1s ease-in-out infinite; }
+@keyframes netrun { from { left: -40%; } to { left: 100%; } }
+
+/* düğmeler */
+.btn, .tabs button { position: relative; overflow: hidden; transition: transform .12s ease, box-shadow .2s ease, background-color .15s, border-color .15s, color .15s, filter .15s; }
+.btn:hover:not(:disabled) { border-color: var(--pink); background: var(--pink-soft); color: var(--pink-ink); transform: translateY(-1px); box-shadow: 0 3px 10px var(--pink-ring); }
+.btn:active:not(:disabled) { transform: translateY(0) scale(.95); box-shadow: 0 0 0 4px var(--pink-ring); }
+.btn.primary:hover:not(:disabled) { background: var(--brand); color: var(--brand-ink); border-color: var(--pink); box-shadow: 0 0 0 2px var(--pink), 0 4px 14px var(--pink-ring); filter: brightness(1.07); }
+.btn.danger:hover:not(:disabled) { background: var(--bad-soft); color: var(--bad); border-color: var(--bad); box-shadow: 0 3px 10px rgba(179, 38, 30, .25); }
+.btn.ghost:hover:not(:disabled) { border-color: transparent; }
+.btn.zap { animation: zap .5s ease-out; }
+@keyframes zap { 0% { box-shadow: 0 0 0 0 var(--pink-ring); } 60% { box-shadow: 0 0 0 9px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+.rip { position: absolute; border-radius: 50%; background: var(--pink); opacity: .35; transform: scale(0); animation: rip .6s ease-out forwards; pointer-events: none; }
+@keyframes rip { to { transform: scale(1); opacity: 0; } }
+
+/* sekmeler, düğme grupları ve ekran menüsü */
+.tabs button { transition: color .15s, background-color .15s, border-color .15s; }
+.tabs button:hover { color: var(--pink-ink); background: var(--pink-wash); }
+.tabs button.active { color: var(--pink-ink); border-bottom-color: var(--pink); }
+.og-seg button.active { background: var(--pink-soft); color: var(--pink-ink); }
+.nav button { transition: color .15s, background-color .15s, box-shadow .2s; }
+.nav button:hover { color: var(--pink-ink); background: var(--pink-wash); }
+.nav button svg { transition: transform .15s; } .nav button:active svg { transform: scale(.82); }
+.nav button.active svg { animation: navpop .5s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes navpop { 0% { transform: scale(.7) rotate(-8deg); } 100% { transform: none; } }
+.vz-lg:hover:not(.static), .og-hit:hover { background: var(--pink-soft); }
+
+/* alanlar: üzerine gelince ve odaklanınca pembe; seçim yapılınca kısa parıltı */
+select, input[type=text], input[type=tel], input[type=email], input[type=password], input[type=number], input[type=url], input[type=date], input[type=search], textarea { transition: border-color .15s, box-shadow .2s, background-color .2s; }
+select:hover, input[type=text]:hover, input[type=tel]:hover, input[type=email]:hover, input[type=password]:hover, input[type=number]:hover, input[type=url]:hover, input[type=date]:hover, input[type=search]:hover, textarea:hover { border-color: var(--pink); }
+input:focus, select:focus, textarea:focus, button:focus-visible { outline: 2px solid var(--pink); outline-offset: 1px; }
+select:focus, input:focus, textarea:focus { box-shadow: 0 0 0 4px var(--pink-ring); }
+select.pop, textarea.pop, input.pop:not([type=checkbox]):not([type=radio]) { animation: popglow .7s ease-out; }
+@keyframes popglow { 0% { box-shadow: 0 0 0 0 var(--pink-ring); border-color: var(--pink); background-color: var(--pink-soft); } 35% { box-shadow: 0 0 0 7px var(--pink-ring); } 100% { box-shadow: 0 0 0 0 transparent; } }
+input[type=checkbox].pop, input[type=radio].pop { animation: tik .5s cubic-bezier(.3, 1.8, .5, 1); }
+@keyframes tik { 0% { transform: scale(.5); } 60% { transform: scale(1.35); } 100% { transform: scale(1); } }
+.stuitem.pop { animation: rowpop .55s ease-out; }
+@keyframes rowpop { 0% { background: var(--pink-soft); box-shadow: inset 4px 0 0 var(--pink); } 100% { background: transparent; } }
+.stuitem { transition: background-color .15s; } .stuitem:hover { background: var(--pink-wash); }
+.stuitem:has(input:checked) { background: var(--pink-soft); box-shadow: inset 3px 0 0 var(--pink); }
+tr:hover td { background: var(--pink-wash); }
+tr:has(input.an-ck:checked) td { background: var(--pink-soft); }
+tr.an-row { cursor: pointer; }
+
+/* dosya seçici */
+.fp { display: inline-flex; align-items: center; gap: .6rem; flex-wrap: wrap; max-width: 100%; padding: .3rem; border: 2px dashed var(--line); border-radius: 12px; transition: border-color .2s, background-color .2s, box-shadow .2s; }
+.fp:hover { border-color: var(--pink); } .fp.over { border-color: var(--pink); background: var(--pink-soft); box-shadow: 0 0 0 4px var(--pink-ring); }
+.fp.has { border-style: solid; border-color: var(--pink); background: var(--pink-wash); }
+.fp-btn { cursor: pointer; margin: 0; } .fp-btn:focus-within { outline: 2px solid var(--pink); outline-offset: 2px; }
+.fp-native { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; clip: rect(0 0 0 0); pointer-events: none; }
+.fp-chip { display: inline-flex; align-items: center; gap: .4rem; min-width: 0; max-width: 100%; padding: .22rem .65rem; border-radius: 99px; background: var(--soft); color: var(--muted); font-size: .88rem; }
+.fp-chip.busy, .fp-chip.done { background: var(--pink-soft); color: var(--pink-ink); }
+.fp-chip.done { animation: chipin .4s cubic-bezier(.3, 1.6, .5, 1); } .fp-chip.error { background: var(--warn-soft); color: var(--warn); }
+.fp-chip .fp-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 20rem; font-weight: 650; } .fp-chip .fp-size, .fp-chip .fp-st { white-space: nowrap; opacity: .85; }
+.fp-spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--pink-ring); border-top-color: var(--pink); animation: spin .7s linear infinite; flex: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.fp-tik { width: 16px; height: 16px; flex: none; stroke: var(--pink); fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 26; animation: draw .45s ease-out; }
+@keyframes draw { from { stroke-dashoffset: 26; } to { stroke-dashoffset: 0; } }
+@keyframes chipin { 0% { transform: scale(.85); opacity: .4; } 100% { transform: none; opacity: 1; } }
+.drop { transition: border-color .2s, background-color .2s, box-shadow .2s; } .drop:hover { border-color: var(--pink); } .drop.over { border-color: var(--pink); background: var(--pink-soft); box-shadow: 0 0 0 4px var(--pink-ring); }
+
+/* ekran geçişi ve bildirimler */
+main.enter { animation: enter .28s ease-out; }
+@keyframes enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.toast { animation: toastin .3s cubic-bezier(.2, .9, .3, 1.25); }
+@keyframes toastin { from { opacity: 0; transform: translateY(14px) scale(.95); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+  #netbar i { left: 0; width: 100%; animation: none; background: var(--pink); }
+  .btn:hover:not(:disabled), .btn:active:not(:disabled) { transform: none; }
+}
+@media print { #netbar, .rip { display: none !important; } }

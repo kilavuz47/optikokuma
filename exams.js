@@ -54,6 +54,23 @@ App.views.exams = function (root) {
     if (ex) { const i = scopes.findIndex(o => o[0] === ex.scopeType && o[1] === String(ex.scopeValue)); if (i >= 0) scopeSel.value = i; }
     else if ((u.role === 'okul' || u.role === 'ogretmen') && scopes.length) scopeSel.value = 0;
     if (u.role === 'okul' || u.role === 'ogretmen' || (ex && ex.personal)) scopeSel.disabled = true;
+    // Kapsam: il / ilçe / düzey süzgeçleri ortak seçimle gelir (diğer ekranlarla aynı); yeni sınavda kapsam seçili okul → ilçe → il'e göre başlar
+    let scopeBox = scopeSel;
+    if (!scopeSel.disabled && S.schools.length > 1) {
+      const hint = h('div', { class: 'small muted', id: 'ex-scope-hint' });
+      const g = Sel.v; let want = -1;
+      if (!ex) { if (g.okul) want = scopes.findIndex(o => o[0] === 'okul' && o[1] === g.okul); if (want < 0 && g.ilce) want = scopes.findIndex(o => o[0] === 'ilce' && (g.il ? o[1] === g.il + '|' + g.ilce : o[1].split('|')[1] === g.ilce)); if (want < 0 && g.il) want = scopes.findIndex(o => o[0] === 'il' && o[1] === g.il); }
+      if (want >= 0) { scopeSel.value = want; hint.textContent = 'Kapsam, seçili ' + scopes[want][2].replace(/^(Okul|İlçe|İl): /, m => m.toLowerCase()) + ' olarak ayarlandı; değiştirmek için listeden başka kapsam seçin.'; }
+      const fillScope = rows => {
+        const cur = scopeSel.value, codes = new Set(rows.map(s => String(s.okulKodu))), ils = new Set(rows.map(s => s.il)), ilces = new Set(rows.map(s => s.il + '|' + s.ilce));
+        clear(scopeSel).append(scopes.map((o, i) => [i, o]).filter(([, o]) => o[0] === 'genel' || (o[0] === 'il' && ils.has(o[1])) || (o[0] === 'ilce' && ilces.has(o[1])) || (o[0] === 'okul' && codes.has(o[1]))).map(([i, o]) => h('option', { value: i }, o[2])));
+        scopeSel.value = cur; if (scopeSel.value !== cur) scopeSel.selectedIndex = 0;
+      };
+      const bar = schoolFilterBar(S.schools, fillScope, { keep: want >= 0 && scopes[want][0] === 'okul' ? scopes[want][1] : '' });
+      if (want >= 0) scopeSel.value = want;
+      scopeSel.addEventListener('change', () => { const o = scopes[+scopeSel.value]; hint.textContent = ''; if (o && o[0] === 'okul') Sel.set({ okul: o[1] }); });
+      scopeBox = h('div', { class: 'sp' }, bar.any ? bar.el : null, scopeSel, hint);
+    }
     const preset = h('select', { onchange: () => { const e = Katalog.byId(preset.value); if (e) applyEntry(e, true); } },
       h('option', { value: '' }, 'Hazır sınav programı seç…'), Katalog.GROUPS.filter(g => g.id !== 'tek').map(g => h('optgroup', { label: g.label }, Katalog.ENTRIES.filter(e => e.group === g.id).map(e => h('option', { value: e.id }, e.name)))));
     function applyEntry(e, setForm) {
@@ -165,7 +182,7 @@ App.views.exams = function (root) {
     if (init && init.templateId && S.templates.some(t => t.templateId === init.templateId)) { tplSel.value = init.templateId; applyTplLessons(); name.value = name.value || (S.templates.find(t => t.templateId === init.templateId) || {}).name || ''; }
     if (init && init.entryId) { const e = Katalog.byId(init.entryId); if (e) { preset.value = e.group !== 'tek' ? e.id : ''; applyEntry(e, true); if (init.nup) stdNup.value = init.nup; if (init.d != null) stdD.value = init.d; stdSd.value = init.sd || 0; drawStd(); } }
     const body = h('div', null,
-      h('div', { class: 'grid' }, h('div', { class: 'field' }, h('label', null, 'Sınav adı'), name), h('div', { class: 'field' }, h('label', null, 'Tarih'), date), h('div', { class: 'field' }, h('label', null, 'Kapsam (hangi okullar katılır)'), scopeSel)),
+      h('div', { class: 'grid' }, h('div', { class: 'field' }, h('label', null, 'Sınav adı'), name), h('div', { class: 'field' }, h('label', null, 'Tarih'), date), h('div', { class: 'field' }, h('label', null, 'Kapsam (hangi okullar katılır)'), scopeBox)),
       u.role === 'ogretmen' ? h('p', { class: 'small muted' }, 'Bu sınav kişiseldir: yalnızca siz ve okul yöneticiniz görür; aynı okuldaki diğer öğretmenler ve ilçe/il yetkilileri göremez.') : h('p', { class: 'small muted' }, 'Aynı sınavı birden çok okul okutur; sonuçlar tek havuzda toplanır ve okullar/ilçeler birbiriyle karşılaştırılır.'),
       h('h3', { style: { marginTop: '1rem' } }, 'Puanlama'), h('div', { class: 'grid' }, h('div', { class: 'field' }, h('label', null, 'Hazır ayar'), preset), h('div', { class: 'field' }, h('label', null, 'Şık sayısı'), choices), h('div', { class: 'field' }, h('label', null, 'Net kuralı'), pen), h('div', { class: 'field' }, h('label', null, 'Puan yöntemi'), methodSel)), methodBox,
       h('h3', { style: { marginTop: '1rem' } }, 'Ders / bölümler ve katsayılar'), secBox,

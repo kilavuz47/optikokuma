@@ -66,7 +66,7 @@ Dis.editor = async function (opts) {
   opts = opts || {}; const S = App.state, ex = opts.exam || null, pre = DisCore.PRESETS[0];
   const schools = S.schools.slice().sort((a, b) => String(a.okulAdi).localeCompare(String(b.okulAdi), 'tr'));
   const st = {
-    examId: ex ? ex.examId : null, okulKodu: String(ex ? ex.okulKodu : (opts.okulKodu || (S.user.okulKodu) || (schools[0] && schools[0].okulKodu) || '')),
+    examId: ex ? ex.examId : null, okulKodu: String(ex ? ex.okulKodu : (Sel.okul(schools, '') || opts.okulKodu || (S.user.okulKodu) || (schools[0] && schools[0].okulKodu) || '')),
     name: ex ? ex.name : '', date: ex ? ex.date : today(), kaynak: ex ? ex.kaynak : '', puanAdi: ex ? ex.config.puanAdi : pre.puanAdi, choices: ex ? ex.config.choices : 4, penalty: ex ? ex.config.penalty : pre.penalty,
     lessons: ex ? ex.config.lessons.map(l => ({ name: l.name, count: l.count, short: l.short })) : pre.lessons.map(l => ({ name: l.name, count: l.count, short: l.short })),
     rows: [], avg: ex ? ex.config.avg : null, avgOkul: ex ? ex.config.avgOkul : null, tab: opts.tab || (ex ? 'grid' : 'upload'), students: new Map(), target: ex ? ex.examId : '', mode: ex ? 'replace' : 'merge', warnings: [], touched: {}, showRanks: false
@@ -80,7 +80,7 @@ Dis.editor = async function (opts) {
   /* ---- üst alanlar */
   const field = (label, node, cls) => h('div', { class: 'field ' + (cls || '') }, h('label', null, label), node);
   el.okul = h('select', { id: 'dx-okul', disabled: !!ex, onchange: async e => { st.okulKodu = e.target.value; st.target = ''; await loadStudents(); drawTarget(); drawSummary(); } }, schools.map(s => h('option', { value: s.okulKodu }, schoolLabel(s))));
-  el.okul.value = st.okulKodu; const okulPick = schoolPicker(el.okul, schools);
+  el.okul.value = st.okulKodu; const okulPick = schoolPicker(el.okul, schools); if (el.okul.value) st.okulKodu = el.okul.value;
   el.name = h('input', { type: 'text', id: 'dx-name', value: st.name, placeholder: 'Örn: DARGE 1. LGS Denemesi', oninput: e => { st.name = e.target.value; st.touched.name = 1; } });
   el.date = h('input', { id: 'dx-date', type: 'date', value: st.date, oninput: e => { st.date = e.target.value; st.touched.date = 1; } });
   el.kaynak = h('input', { type: 'text', id: 'dx-kaynak', value: st.kaynak, list: 'dx-kaynak-list', placeholder: 'Yayınevi / kurum', oninput: e => { st.kaynak = e.target.value; st.touched.kaynak = 1; } });
@@ -108,7 +108,7 @@ Dis.editor = async function (opts) {
   el.file = h('input', { id: 'dx-file', type: 'file', accept: '.xlsx,.xlsm,.csv,.tsv,.txt', onchange: async e => { const f = e.target.files[0]; if (f) await parseInput(() => dxReadFile(f), f.name); e.target.value = ''; } });
   el.paste = h('textarea', { id: 'dx-paste', rows: 5, placeholder: 'Excel\'den kopyaladığınız tabloyu (başlık satırı dahil) buraya yapıştırabilirsiniz…', style: { width: '100%' } });
   const uploadPane = h('div', null,
-    h('div', { class: 'row', style: { marginBottom: '.6rem' } }, el.file, h('button', { class: 'btn', id: 'dx-tpl', onclick: () => Dis.templateModal({ lessons: st.lessons, puanAdi: st.puanAdi, penalty: st.penalty }) }, '⬇ Hazır Excel şablonunu indir')),
+    h('div', { class: 'row', style: { marginBottom: '.6rem' } }, FilePick.field(el.file, { label: 'Excel / CSV dosyası seç' }), h('button', { class: 'btn', id: 'dx-tpl', onclick: () => Dis.templateModal({ lessons: st.lessons, puanAdi: st.puanAdi, penalty: st.penalty }) }, '⬇ Hazır Excel şablonunu indir')),
     h('details', null, h('summary', { class: 'small' }, 'Ya da tabloyu yapıştır'), el.paste, h('div', { class: 'row end', style: { marginTop: '.4rem' } }, h('button', { class: 'btn sm', id: 'dx-parse', onclick: () => { const t = el.paste.value; if (!t.trim()) return toast('Önce tabloyu yapıştırın', 'warn'); parseInput(async () => ({ sheets: [{ name: 'Yapıştırılan', rows: parseTable(t) }] }), 'yapıştırılan tablo'); } }, 'Çözümle'))),
     summary);
 

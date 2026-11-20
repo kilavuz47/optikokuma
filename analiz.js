@@ -8,6 +8,17 @@ const anNk = s => DisCore.nk(s);
 const anDate = d => (d ? String(d).slice(0, 10) : '');
 const anFmtDate = d => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d || ''); return m ? `${m[3]}.${m[2]}.${m[1]}` : (d || ''); };
 
+/** Analizin okulunu ortak seçimle eşitler (ortak okul varsa o; yoksa il/ilçe/düzey süzgecine uymayan okulun yerine süzgeçteki ilk okul). Değiştiyse true. */
+function anSyncOkul(schools) {
+  const g = Sel.okul(schools, '');
+  if (g) { if (g !== String(AN.okul)) { anSetOkul(g); return true; } return false; }
+  const cur = schoolByCode(AN.okul);
+  if (cur && !Sel.fits(cur)) { const f = schools.find(s => Sel.fits(s)); if (f) { anSetOkul(f.okulKodu); return true; } }
+  return false;
+}
+/** Okul değişince analiz durumunu sıfırlar (sınav seçimi, yüklü veriler, sınıf). Yeniden yüklemeyi çağıran yapar. */
+function anSetOkul(code) { AN.okul = String(code); Settings.set('anOkul', AN.okul); AN.sel.clear(); AN.data.clear(); AN.selInit = false; AN.cls = ''; AN.examId = ''; }
+
 /* ---------------------------------------------------------------- veri */
 function anNormInt(D) {
   const cfg = D.exam.config || {}, lessons = D.sections.map(s => ({ name: s.name, count: s.count || 0 }));
@@ -107,6 +118,7 @@ const AN_ORDER = ['list', 'ogr', 'sinif', 'ders', 'listeler', 'dev', 'cmp'], AN_
 App.views.analiz = function (root) {
   const S = App.state, u = S.user;
   const schools = S.schools.slice().sort((a, b) => String(a.okulAdi).localeCompare(String(b.okulAdi), 'tr'));
+  anSyncOkul(schools);
   if (!AN.okul || !schoolByCode(AN.okul)) AN.okul = String((u.okulKodu && schoolByCode(u.okulKodu)) ? u.okulKodu : (Settings.get('anOkul', '') && schoolByCode(Settings.get('anOkul', '')) ? Settings.get('anOkul', '') : (schools[0] ? schools[0].okulKodu : '')));
   const top = h('div'), body = h('div', { id: 'an-body' });
   root.append(h('div', { class: 'row between no-print' }, h('h1', null, 'Sınav analizi'), h('div', { class: 'row' },
@@ -133,8 +145,9 @@ App.views.analiz = function (root) {
 
   function draw() {
     if (App.state.view !== 'analiz') return;
+    if (anSyncOkul(schools)) { init(); return; }   // başka ekranda/üstteki pencerede okul değiştiyse analiz de ona geçer
     clear(top); clear(body); const cat = anCatalog(), sel = anSelected();
-    const okulSel = h('select', { id: 'an-okul', onchange: e => { AN.okul = e.target.value; Settings.set('anOkul', AN.okul); AN.sel.clear(); AN.data.clear(); AN.selInit = false; AN.cls = ''; AN.examId = ''; init(); } }, schools.map(s => h('option', { value: s.okulKodu }, schoolLabel(s)))); okulSel.value = AN.okul;
+    const okulSel = h('select', { id: 'an-okul', onchange: e => { anSetOkul(e.target.value); init(); } }, schools.map(s => h('option', { value: s.okulKodu }, schoolLabel(s)))); okulSel.value = AN.okul;
     top.append(h('div', { class: 'card no-print' }, h('div', { class: 'row an-f', style: { marginBottom: '.6rem' } }, h('b', null, 'Okul'), schoolPicker(okulSel, schools), h('span', { id: 'an-status', class: 'small muted' })), examTable(cat)));
     if (!sel.length) { body.append(h('div', { class: 'empty card' }, AN.loading.size ? 'Sınavlar yükleniyor…' : 'Analiz için yukarıdan en az bir sınav seçin. Dışarıdan sınav eklemek için "+ Dış sınav ekle"yi kullanın.')); return; }
     const classes = anClasses(sel), lessons = anLessons(sel); if (AN.cls && !classes.includes(AN.cls)) AN.cls = '';

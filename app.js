@@ -17,7 +17,7 @@ function h(tag, attrs, ...kids) {
     if (v == null || v === false) continue;
     if (k === 'class') el.className = v;
     else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);
-    else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v);
+    else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), (k === 'onchange' && tag === 'input' && attrs.type === 'file' && typeof FilePick !== 'undefined') ? FilePick.wrap(v) : v);
     else if (k === 'value') val = v;
     else if (k === 'checked' || k === 'disabled' || k === 'selected' || k === 'multiple' || k === 'readOnly') el[k] = !!v;
     else el.setAttribute(k, v === true ? '' : v);
@@ -128,6 +128,19 @@ const DB = {
   clear(store) { return this.open().then(db => new Promise((res, rej) => { const t = db.transaction(store, 'readwrite'); t.objectStore(store).clear(); t.oncomplete = () => res(); t.onerror = () => rej(t.error); })); }
 };
 
+/* ------------------------------------------------------------------ çalışıyor göstergesi
+   Sayfanın en üstünde ince pembe ilerleme çubuğu: ağ isteği sürerken görünür; kısa işlemlerde de kısa bir "çalışıyor" atışı verir. */
+const Busy = {
+  n: 0, shown: 0, tShow: 0, tHide: 0, bar: null,
+  el() { if (!this.bar) { this.bar = h('div', { id: 'netbar', 'aria-hidden': 'true' }, h('i')); document.body.append(this.bar); } return this.bar; },
+  _show() { clearTimeout(this.tHide); this.el().classList.add('on'); if (!this.shown) this.shown = Date.now(); },
+  _hide() { clearTimeout(this.tShow); const wait = this.shown ? Math.max(0, 450 - (Date.now() - this.shown)) : 0; clearTimeout(this.tHide); this.tHide = setTimeout(() => { if (this.n > 0) return; if (this.bar) this.bar.classList.remove('on'); this.shown = 0; }, wait); },
+  start(now) { this.n++; if (now) this._show(); else if (this.n === 1) { clearTimeout(this.tShow); this.tShow = setTimeout(() => { if (this.n > 0) this._show(); }, 120); } },
+  end() { if (this.n > 0) this.n--; if (this.n === 0) this._hide(); },
+  pulse(ms) { this.start(true); setTimeout(() => this.end(), ms || 500); },
+  track(p, now) { this.start(now); return Promise.resolve(p).finally(() => this.end()); }
+};
+
 /* ------------------------------------------------------------------ API */
 function isNetErr(e) { return e instanceof TypeError || (e && (e.name === 'AbortError' || e.code === 'NET')); }
 function setOnline(v) { if (App.state.online !== v) { App.state.online = v; App.updateTopbar && App.updateTopbar(); if (v && App.hooks.onOnline) App.hooks.onOnline(); } }
@@ -135,6 +148,10 @@ function setOnline(v) { if (App.state.online !== v) { App.state.online = v; App.
 /** Sunucu adresi: kullanıcının girdiği; yoksa config.js'te yöneticinin tanımladığı. */
 const getApiUrl = () => Settings.get('apiUrl', '') || String((window.OPTIK_CONFIG && window.OPTIK_CONFIG.apiUrl) || '');
 async function api(action, params, opt) {
+  const quiet = opt && opt.quiet; if (!quiet) Busy.start();
+  try { return await apiCall(action, params, opt); } finally { if (!quiet) Busy.end(); }
+}
+async function apiCall(action, params, opt) {
   const url = getApiUrl();
   if (!url) { const e = new Error('Sunucu adresi (Apps Script /exec) girilmemiş. Ayarlar sayfasından ekleyin.'); e.code = 'NOURL'; throw e; }
   const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), (opt && opt.timeout) || 90000);
@@ -167,14 +184,44 @@ const examById = id => App.state.exams.find(e => e.examId === id);
 const schoolByCode = c => App.state.schools.find(s => String(s.okulKodu) === String(c));
 function schoolLabel(s) { return s ? `${s.okulAdi} · ${s.ilce}/${s.il} (${s.okulKodu})` : ''; }
 
+/* ------------------------------------------------------------------ ortak seçim: il / ilçe / düzey / okul
+   Tüm ekranlardaki okul seçicileri bu depoyu okur ve yazar: bir yerde yapılan il / ilçe / düzey / okul seçimi her ekranda (sınav oluşturma,
+   okutma, analiz, formlar, yönetim…) etkin kalır; cihazda saklanır. Arama metni (q) ortak değildir. */
+const Sel = (() => {
+  const KEYS = ['il', 'ilce', 'tur', 'okul'], v = { il: '', ilce: '', tur: '', okul: '' }, subs = new Set(); let depth = 0;
+  { const s = Settings.get('secim', null); if (s && typeof s === 'object') KEYS.forEach(k => { if (typeof s[k] === 'string') v[k] = s[k]; }); }
+  return {
+    v,
+    /** p: { il, ilce, tur, okul } (verilenler yazılır). src: değişikliği yapan öğe (kendine bildirim gitmez). Değişiklik olduysa true. */
+    set(p, src) {
+      let ch = false; KEYS.forEach(k => { if (p && p[k] !== undefined && String(p[k]) !== v[k]) { v[k] = String(p[k]); ch = true; } });
+      if (!ch) return false; Settings.set('secim', v);
+      if (depth > 3) return true; depth++;
+      try { Array.from(subs).forEach(s => { if (s.src === src) return; if (s.el && !s.el.isConnected) { if (s.seen) subs.delete(s); return; } s.seen = true; try { s.fn(v, src); } catch (e) { console.error(e); } }); } finally { depth--; }
+      return true;
+    },
+    /** fn(v, src): seçim başka bir yerde değişince çağrılır. el ekrandan kalkınca abonelik kendiliğinden düşer. Döner: aboneliği bırakan işlev. */
+    on(fn, el, src) { const s = { fn, el, src, seen: false }; subs.add(s); return () => subs.delete(s); },
+    /** Okul, ortak il/ilçe/düzey süzgecine uyuyor mu? */
+    fits(s) { return !!s && (!v.il || s.il === v.il) && (!v.ilce || s.ilce === v.ilce) && (!v.tur || s.tur === v.tur); },
+    /** Ortak okul seçili ve verilen listede varsa onu, yoksa fb'yi döndürür. */
+    okul(schools, fb) { const c = v.okul; return c && (schools || []).some(s => String(s.okulKodu) === c) ? c : fb; }
+  };
+})();
+
 /* ------------------------------------------------------------------ okul seçimi: il → ilçe → düzey (+ arama)
    Uzun okul listesini adım adım daraltır. Yalnızca ayırt edici olan süzgeçler görünür (tek il varsa il kutusu çıkmaz). */
 const spNorm = v => String(v == null ? '' : v).toLocaleLowerCase('tr').replace(/ç/g, 'c').replace(/ğ/g, 'g').replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ş/g, 's').replace(/ü/g, 'u').replace(/̇/g, '');
 const spUniq = a => Array.from(new Set(a.filter(Boolean))).sort((x, y) => String(x).localeCompare(String(y), 'tr'));
-/** schools: okul dizisi. onChange(liste, kullanıcıDeğiştirdi) süzgeç her değiştiğinde çağrılır. Döner: { el, list(), any (görünür süzgeç var mı), set({il,ilce,tur,q}) } */
-function schoolFilterBar(schools, onChange) {
+/** schools: okul dizisi. onChange(liste, kullanıcıDeğiştirdi) süzgeç her değiştiğinde çağrılır. Döner: { el, list(), any (görünür süzgeç var mı), set({il,ilce,tur,q}), destroy() }
+ *  Süzgeçler (il/ilçe/düzey) ortak seçimden (Sel) başlar ve her değişiklikte ona yazılır; başka ekrandaki/üstteki süzgeçler de birlikte güncellenir.
+ *  opts: { keep: bu okulun görünür kalması için süzgeçleri gevşet, shared: false → ortak seçimden bağımsız } */
+function schoolFilterBar(schools, onChange, opts) {
+  opts = opts || {}; const shared = opts.shared !== false, me = opts.me || {};
   const all = (schools || []).slice().sort((a, b) => String(a.okulAdi).localeCompare(String(b.okulAdi), 'tr'));
-  const f = { il: '', ilce: '', tur: '', q: '' }, ils = spUniq(all.map(s => s.il));
+  const f = { il: shared ? Sel.v.il : '', ilce: shared ? Sel.v.ilce : '', tur: shared ? Sel.v.tur : '', q: '' }, ils = spUniq(all.map(s => s.il));
+  if (opts.keep) { const k = all.find(s => String(s.okulKodu) === String(opts.keep)); if (k) { if ((f.il && f.il !== k.il) || (f.ilce && f.ilce !== k.ilce)) { f.il = k.il; f.ilce = k.ilce; } if (f.tur && f.tur !== k.tur) f.tur = ''; } }
+  let seenV = { il: f.il, ilce: f.ilce, tur: f.tur };
   const sel = (cls, label, change) => h('select', { class: 'sp-' + cls, 'aria-label': label, onchange: change });
   const ilSel = sel('il', 'İl', e => { f.il = e.target.value; f.ilce = ''; f.tur = ''; paint(true); });
   const ilceSel = sel('ilce', 'İlçe', e => { f.ilce = e.target.value; f.tur = ''; paint(true); });
@@ -186,35 +233,53 @@ function schoolFilterBar(schools, onChange) {
   const inArea = s => (!f.il || s.il === f.il) && (!f.ilce || s.ilce === f.ilce);
   const list = () => { const t = spNorm(f.q).trim(); return all.filter(s => inArea(s) && (!f.tur || s.tur === f.tur) && (!t || spNorm(s.okulAdi + ' ' + s.okulKodu + ' ' + s.ilce + ' ' + s.il).includes(t))); };
   const fillSel = (node, first, vals, cur) => { clear(node).append(h('option', { value: '' }, first), ...vals.map(v => h('option', { value: v }, v))); node.value = vals.indexOf(cur) >= 0 ? cur : ''; return node.value; };
+  /** user: true = kullanıcı değiştirdi (ortak seçime yazılır), 'sync' = başka ekrandaki süzgeçle eşitlendi, false = ilk çizim */
   const paint = user => {
     fillSel(ilSel, 'Tüm iller', ils, f.il); f.il = ilSel.value;
     const ilceVals = spUniq(all.filter(s => !f.il || s.il === f.il).map(s => s.ilce)); f.ilce = fillSel(ilceSel, 'Tüm ilçeler', ilceVals, f.ilce);
     const turVals = spUniq(all.filter(inArea).map(s => s.tur)); f.tur = fillSel(turSel, 'Tüm düzeyler', turVals, f.tur);
     ilSel.hidden = ils.length < 2; ilceSel.hidden = ilceVals.length < 2; turSel.hidden = turVals.length < 2 && !f.tur; q.hidden = all.length < 8 && !f.q;
+    if (user === true && shared) {
+      seenV = { il: f.il, ilce: f.ilce, tur: f.tur }; Sel.set(seenV, me);
+      // süzgeç seçili okulu dışarıda bırakıyorsa ortak okul seçimi temizlenir (il/ilçe/düzey ile okul çelişmesin)
+      const k = Sel.v.okul && all.find(s => String(s.okulKodu) === Sel.v.okul); if (k && !(inArea(k) && (!f.tur || k.tur === f.tur))) Sel.set({ okul: '' }, me);
+    }
     const l = list(), active = !!(f.il || f.ilce || f.tur || f.q);
     count.textContent = active || all.length >= 8 ? `${l.length} okul` : ''; count.hidden = !count.textContent;
     onChange && onChange(l, !!user);
   };
+  const off = shared ? Sel.on(v => { if (v.il === seenV.il && v.ilce === seenV.ilce && v.tur === seenV.tur) return; seenV = { il: v.il, ilce: v.ilce, tur: v.tur }; Object.assign(f, seenV); paint('sync'); }, el, me) : () => { };
   paint(false);
-  return { el, list, get any() { return !(ilSel.hidden && ilceSel.hidden && turSel.hidden && q.hidden); }, set(v) { Object.assign(f, v || {}); paint(true); } };
+  return { el, list, get any() { return !(ilSel.hidden && ilceSel.hidden && turSel.hidden && q.hidden); }, set(v) { Object.assign(f, v || {}); paint(true); }, destroy: off };
 }
 /** Var olan okul <select>'ini süzgeçli hale getirir (id, value, change olayı aynen çalışır). Seçenek yoksa/tek okul varsa select'i olduğu gibi döndürür.
- *  Dönen öğeyi sayfaya koyun. İlk seçenek value="" ise yer tutucu olarak korunur. */
-function schoolPicker(sel, schools) {
+ *  Dönen öğeyi sayfaya koyun. İlk seçenek value="" ise yer tutucu olarak korunur.
+ *  Seçili okul ortak seçimdendir (Sel.okul): başlangıçta onu gösterir, kullanıcı değiştirince ona yazar, başka ekrandaki seçici değişince eşitlenir.
+ *  opts: { extra: [{value,label}] listenin başında sabit özel seçenekler (örn. "otomatik"), shared: false → ortak seçimden bağımsız } */
+function schoolPicker(sel, schools, opts) {
+  opts = opts || {};
   if (sel.disabled || !schools || schools.length < 2) return sel;
-  const ph = sel.querySelector('option[value=""]'), phText = ph ? ph.textContent : '', init = sel.value;
-  let bar = null;
+  const shared = opts.shared !== false, extra = opts.extra || [], me = {};
+  const ph = sel.querySelector('option[value=""]'), phText = ph ? ph.textContent : '';
+  const has = c => schools.some(s => String(s.okulKodu) === String(c)), isExtra = v => extra.some(e => e.value === v);
+  let init = sel.value; if (shared && !isExtra(init)) { const g = Sel.v.okul; if (g && has(g)) init = g; }
   const fill = (list, user) => {
     const cur = sel.value, sameIlce = new Set(list.map(s => s.ilce)).size === 1;
     clear(sel);
     if (ph) sel.append(h('option', { value: '' }, phText));
+    extra.forEach(e => sel.append(h('option', { value: e.value }, e.label)));
     if (!list.length) sel.append(h('option', { value: '', disabled: true }, '(bu süzgeçle okul yok)'));
     list.forEach(s => sel.append(h('option', { value: s.okulKodu }, sameIlce ? `${s.okulAdi} (${s.okulKodu})` : schoolLabel(s))));
-    if (list.some(s => String(s.okulKodu) === String(cur))) sel.value = cur; else if (!ph && list.length) sel.value = String(list[0].okulKodu); else sel.value = '';
-    if (user && sel.value !== cur && !(list.length === 0 && !ph)) sel.dispatchEvent(new Event('change', { bubbles: true }));
+    if (isExtra(cur) || list.some(s => String(s.okulKodu) === String(cur))) sel.value = cur; else if (!ph && extra.length) sel.value = extra[0].value; else if (!ph && list.length) sel.value = String(list[0].okulKodu); else sel.value = '';
+    if (user && sel.value !== cur && !(list.length === 0 && !ph && !extra.length)) sel.dispatchEvent(new Event('change', { bubbles: true }));
   };
-  bar = schoolFilterBar(schools, fill);
-  if (!bar.any) { fill(schools.slice().sort((a, b) => String(a.okulAdi).localeCompare(String(b.okulAdi), 'tr')), false); if (init) sel.value = init; return sel; }
+  if (init) sel.value = init;
+  const bar = schoolFilterBar(schools, fill, { keep: isExtra(init) ? '' : init, me, shared });
+  if (shared) {
+    sel.addEventListener('change', () => { if (!isExtra(sel.value)) Sel.set({ okul: sel.value }, me); });
+    Sel.on(v => { const c = v.okul; if (c && c !== sel.value && sel.isConnected && !sel.disabled && Array.from(sel.options).some(o => o.value === c && !o.disabled)) { sel.value = c; sel.dispatchEvent(new Event('change', { bubbles: true })); } }, sel, me);
+  }
+  if (!bar.any) { bar.destroy(); if (init) sel.value = init; return sel; }
   if (init) sel.value = init;
   sel.classList.add('sp-main');
   const box = h('div', { class: 'sp' }, bar.el, sel); box.select = sel; box.bar = bar; return box;

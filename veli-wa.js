@@ -76,7 +76,7 @@ function waTab(pane) {
   const prepBtn = h('button', { class: 'btn primary', id: 'wa-prepare' }, 'Mesajları hazırla');
   const info = h('div', { id: 'wa-info' }), out = h('div', { id: 'wa-out' });
   if (u.role === 'okul' && S.schools[0]) schoolSel.value = S.schools[0].okulKodu;
-  else { const last = Settings.get('waSchool', ''); if (S.schools.some(s => String(s.okulKodu) === String(last))) schoolSel.value = last; }
+  else if (!schoolSel.value) { const last = Settings.get('waSchool', ''); if (S.schools.some(s => String(s.okulKodu) === String(last))) schoolSel.value = last; }
 
   /* ---------------- sınav ve sınıf listeleri ---------------- */
   const covers = (ex, sc) => !sc ? false : ex.scopeType === 'genel' ? true : ex.scopeType === 'il' ? sc.il === ex.scopeValue : ex.scopeType === 'ilce' ? `${sc.il}|${sc.ilce}` === ex.scopeValue : String(sc.okulKodu) === String(ex.scopeValue);

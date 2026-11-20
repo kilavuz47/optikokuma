@@ -188,10 +188,10 @@ App.views.scan = function (root) {
   const open = S.exams.filter(canScanExam);
   if (!SC.examId || !examById(SC.examId)) SC.examId = Settings.get('scanExam', '') && examById(Settings.get('scanExam', '')) ? Settings.get('scanExam', '') : (open[0] ? open[0].examId : '');
   const exSel = h('select', { id: 'sc-exam' }, open.length ? open.map(e => h('option', { value: e.examId }, `${e.name}${e.date ? ' · ' + e.date : ''}`)) : h('option', { value: '' }, '(açık sınav yok)'));
-  const scSel = h('select', { id: 'sc-school' });
+  const scSel = h('select', { id: 'sc-school' }), scHold = h('div', null, scSel);
   const info = h('div'), listBox = h('div'), progBox = h('div');
-  const fileIn = h('input', { type: 'file', accept: 'image/*,application/pdf,.pdf', multiple: true, class: 'hidden', onchange: e => { handle(Array.from(e.target.files)); e.target.value = ''; } });
-  const camIn = h('input', { type: 'file', accept: 'image/*', capture: 'environment', class: 'hidden', onchange: e => { handle(Array.from(e.target.files)); e.target.value = ''; } });
+  const fileIn = h('input', { type: 'file', accept: 'image/*,application/pdf,.pdf', multiple: true, class: 'hidden', onchange: e => { const r = handle(Array.from(e.target.files)); e.target.value = ''; return r; } });
+  const camIn = h('input', { type: 'file', accept: 'image/*', capture: 'environment', class: 'hidden', onchange: e => { const r = handle(Array.from(e.target.files)); e.target.value = ''; return r; } });
   const HINT_CORNERS = 'İpucu: formun 4 köşe işareti ve üstteki siyah çubuk görünsün; düz ışık, gölgesiz. Canlı kamera, 4 köşeyi görünce kendiliğinden okur ve doğru/yanlışı hemen gösterir.';
   const hint = h('p', { class: 'small muted', id: 'sc-hint', style: { margin: '.7rem 0 0' } }, HINT_CORNERS);
   const drop = h('div', { class: 'drop', id: 'sc-drop' },
@@ -214,11 +214,14 @@ App.views.scan = function (root) {
     SC.tplInfo = resolveTemplate(ex); const cfg = examCfg(ex), t = SC.tplInfo.tpl; SC.expect = t.kind === 'generated' ? t.formCode : null;
     const fk = t.frameKind, edge = fk === 'sides' || fk === 'track', live = $('#sc-live'); if (live) live.disabled = edge;
     hint.textContent = edge ? `İpucu: bu formda köşe karesi yok; formun kenarlarındaki siyah çizgilerin ${fk === 'track' ? '(tek kenar)' : '(iki kenar)'} hepsi ve tüm baloncuk alanı görünsün. Düz ışık, gölgesiz. ${fk === 'track' ? 'Tek çizgili formlarda en iyi sonuç tarayıcıdadır; fotoğrafı düz ve dik açıyla çekin. ' : ''}Canlı kamera yalnızca köşe karesi olan formlarda çalışır; burada dosya seçin ya da "Fotoğraf çek" kullanın.` : HINT_CORNERS;
+    const extra = schools.length && t.schoolDigits > 0 ? [{ value: SCHOOL_AUTO, label: '⚡ Formdaki kurum kodundan otomatik' }] : [];
     if (!schools.length) scSel.append(h('option', { value: '' }, '(bu sınavda yetkili olduğunuz okul yok)'));
-    if (schools.length && t.schoolDigits > 0) scSel.append(h('option', { value: SCHOOL_AUTO }, '⚡ Formdaki kurum kodundan otomatik'));
+    extra.forEach(x => scSel.append(h('option', { value: x.value }, x.label)));
     schools.forEach(s => scSel.append(h('option', { value: s.okulKodu }, schoolLabel(s))));
-    const last = Settings.get('scanSchool', '');
-    if (schools.some(s => String(s.okulKodu) === String(last)) || (last === SCHOOL_AUTO && t.schoolDigits > 0)) scSel.value = last; else if (t.schoolDigits > 0 && schools.length) scSel.value = SCHOOL_AUTO;
+    // seçim önceliği: "otomatik" tercihi → ortak (il/ilçe/okul) seçim → son kullanılan okul → otomatik (kurum kodu varsa)
+    const last = Settings.get('scanSchool', ''), glob = Sel.okul(schools, '');
+    if (last === SCHOOL_AUTO && t.schoolDigits > 0) scSel.value = SCHOOL_AUTO; else if (glob) scSel.value = glob; else if (schools.some(s => String(s.okulKodu) === String(last))) scSel.value = last; else if (t.schoolDigits > 0 && schools.length) scSel.value = SCHOOL_AUTO;
+    clear(scHold).append(schoolPicker(scSel, schools, { extra }));
     info.append(h('div', { class: 'chips' }, h('span', { class: 'chip' }, 'Şablon: ' + SC.tplInfo.name), h('span', { class: 'chip' }, `${cfg.total} soru · ${cfg.choices} şık`), h('span', { class: 'chip' }, Object.keys(cfg.keys).length ? 'Cevap anahtarı: ' + Object.keys(cfg.keys).join(', ') : 'Cevap anahtarı görünmüyor'), t.nup > 1 ? h('span', { class: 'chip' }, `Sayfada ${t.nup} form`) : null, edge ? h('span', { class: 'chip' }, fk === 'track' ? 'Tek yan çizgili form' : 'Yan çizgili form') : null, t.nameLen || t.surnameLen ? h('span', { class: 'chip' }, 'Ad-soyad formdan okunur') : null, t.schoolDigits > 0 ? h('span', { class: 'chip' }, `Kurum kodu: ${t.schoolDigits} hane`) : null, t.formCodeHex ? h('span', { class: 'chip', title: 'Formun altındaki kimlik kodu; yanlış form otomatik yakalanır' }, 'Form kimliği: ' + t.formCodeHex) : null));
     if (SC.tplInfo.mapError) info.append(h('div', { class: 'alert bad', id: 'sc-maperr' }, 'Sınav–form soru eşlemesi kurulamadı: ' + SC.tplInfo.mapError + ' Sınavı düzenleyip "Formla eşleme" bölümünü düzeltin.'));
     if (SC.tplInfo.mapped) info.append(h('div', { class: 'small muted', id: 'sc-mapnote', style: { marginTop: '.3rem' } }, `Form ${SC.tplInfo.formQuestions} soruluk; sınavda ${cfg.total} soru okunur, formdaki ${SC.tplInfo.mapped.unused} satır yok sayılır. `, SC.tplInfo.mapped.plan.map(p => `${p.name} ← ${p.lessonName ? p.lessonName + ' ' : 'form '}${p.from}–${p.to}`).join(' · ')));
@@ -534,7 +537,7 @@ App.views.scan = function (root) {
   }
 
   root.append(h('h1', null, 'Optik okutma'),
-    h('div', { class: 'card' }, h('div', { class: 'grid' }, h('div', { class: 'field' }, h('label', { for: 'sc-exam' }, 'Sınav'), exSel), h('div', { class: 'field' }, h('label', { for: 'sc-school' }, 'Okul'), scSel)), info),
+    h('div', { class: 'card' }, h('div', { class: 'grid' }, h('div', { class: 'field' }, h('label', { for: 'sc-exam' }, 'Sınav'), exSel), h('div', { class: 'field' }, h('label', { for: 'sc-school' }, 'Okul'), scHold)), info),
     drop, fileIn, camIn, progBox, listBox);
   if (SC.examId) exSel.value = SC.examId;
   selectExam(exSel.value || '');
