@@ -6,7 +6,7 @@ Sistem formu düzeltir, bütün baloncukları **milimetrik** bulur ve blokları 
 **Formlar → Harici formu otomatik tanıt** ekranında sonucu görür, gerekirse düzeltir ve **Onayla ve kaydet** dersiniz; form kayıtlı şablon olur.
 Sınav oluştururken bu şablonu seçince dersler/soru sayısı şablondan gelir ("Dersleri bu formdan al"). Okutma (toplu dosya, PDF, telefon fotoğrafı) şablonla otomatik eşleşir; sayfa 90°/180° dönük de olsa yön kendiliğinden bulunur.
 
-> Baloncukların **konumu görüntü işlemeyle** bulunur (deterministik, her seferinde aynı sonuç). Yapay zekâ yalnızca *anlam* önerir: ders adı, şık harfleri, bloğun rolü. Anahtarsız da her şey çalışır.
+> Baloncukların **kesin konumu her zaman görüntü işlemeyle** bulunur (deterministik, her seferinde aynı sonuç). **Yapay zekâ** isteğe bağlı olarak formun **tamamını** önerir: bölümlerin yerini, satır/sütun sayılarını, ad-soyad ızgaralarını, ders adlarını, harfleri, soru sırasını. Yapay zekâ kutuyu ve sayıları söyler, uygulama onları gerçek baloncuklara oturtur; sonuç sıradan bloklardır ve bütün **elle düzenleme araçları** onlarda da çalışır. Anahtarsız da (kendi sohbet uygulamanızla) ve yapay zekâsız da her şey çalışır.
 
 ## Desteklenen form türleri (çerçeve)
 Formun sayfada nerede durduğunu bulmak için kullanılan işaretlere **çerçeve** denir. Ekranda "Çerçeve türü" listesinden görürsünüz; çoğu zaman **Otomatik** doğru bulur.
@@ -73,11 +73,35 @@ Tanıtılan harici formun **üzerine**, öğrenciye ait bilgilerin **dolu balonc
 - Yalnızca otomatik tanıtılan (harici) formlarda vardır; hazır katalog formlarında kişiye özel form zaten "Form tasarla ve yazdır"dadır.
 - Yazıcı ölçeği: yazdırırken tarayıcıda **ölçek %100 / "Gerçek boyut"**, kenar boşluğu **yok** seçin; üstte-altta yazıcı kenar payı olan makinelerde dikey kaydırma ile telafi edin.
 
+## Yapay zekâ ile TAM tanıma (konum + sayılar + ad/harf)
+İki yol vardır; ikisi de aynı JSON şemasını (`optinet-layout/1`) ve aynı birleştirme kurallarını kullanır.
+
+**1) Dışarıdaki bir sohbet yapay zekâsı (anahtar gerekmez).** *Formlar ▸ Otomatik tanıt ▸ API'siz yapay zekâ (sohbet uygulamasıyla)*:
+1. Pencerede **"Tam tanıma"** seçili gelir. Uygulama formu **cetvelli** (kenarlarda 0–1000 ölçeği, her 100'de mavi kesikli ızgara) ve algılanan bloklar b1, b2… numaralı olarak hazırlar; **hazır istemi** de üretir (algılanan bloklar kutu koordinatları ve satır×sütun sayılarıyla istemin içindedir).
+2. Görüntüyü indirip/kopyalayıp sohbet uygulamasına yükleyin, istemi yapıştırın.
+3. Uygulama yanıtı **yapıştırarak** ya da **dosya olarak (.json / .txt) yükleyerek** alır. Dosya yüklenince hemen uygulanır. Kod çiti, açıklama, akıllı tırnak, sondaki virgül gibi küçük bozukluklar tolere edilir; yanıt yarıda kesilmişse ya da JSON yoksa açık bir hata verilir ve pencere açık kalır. (Word/PDF dosyası okunamaz; yanıtı metin olarak yapıştırın.)
+4. Yapay zekânın kutuları tuvalde **mor kesikli** çizilir, otomatik tanıma **renkli çerçevelerle** kalır: ikisi yan yana görünür ("Yapay zekânın kutularını göster" ile kapatılabilir).
+
+**2) Uygulamanın kendi yapay zekâsı** (yönetici anahtar tanımlamışsa): **Yapay zekâ ile tam tanıma** düğmesi aynı işi tek tıkla yapar (aynı cetvelli görüntü + blok listesi sunucuya gider, yanıt aynı şekilde uygulanır). Eski **"Yalnızca ders adı ve harfleri öner"** düğmesi hızlı/ucuz seçenek olarak durur. *(Bu düğme için `Code.gs`'in yeni sürümünü Apps Script'e yapıştırıp yeni sürüm dağıtmak gerekir; sohbet uygulamasıyla çalışan yol Code.gs'e bağlı değildir.)*
+
+**Yapay zekâ ne verir?** Her blok için: kutu, satır/sütun sayısı, yön (her satır mı her sütun mu bir soru/hane), tür, ders adı, şık harfleri (ad/soyad ızgaralarında alfabe), başlangıç soru numarası; eksik bloklar için "ekle", yanlış bulunanlar için "yok say" önerisi.
+
+**Uygulama bunu nasıl birleştirir?**
+- **Konumu yapay zekâ değil görüntü belirler.** Kutu yaklaşık yeterlidir (±%1,5 sapma sorun olmaz): uygulama kutunun içindeki **gerçek baloncuklardan** ızgarayı kurar ve satır/sütun sayısını yapay zekânın sayısıyla karşılaştırır. Baloncukları algılanmamış (silik baskı) bir bölge ise yapay zekânın sayılarıyla ızgara kurulur ve gerçek baloncuklara oturtulur; oturma zayıfsa bloğun üstünde uyarı çıkar.
+- **Sayılar uyuşmazsa** (ör. yapay zekâ 21 satır dedi, görüntüde 20 var) görüntü esas alınır, yapay zekânın değeri bloğun üstünde **"Yapay zekâ önerisini uygula (21×4…)"** düğmesiyle bekler; önerilen yerleşim tuvalde mor noktalı çizgiyle görünür.
+- Otomatik tanımanın **kaçırdığı bölümler** yapay zekâ "ekle" derse eklenir. Yapay zekâ listesinde olmayan algılanmış bloklar **silinmez**, "yapay zekâ bu bloğu listesine almadı (yanlış tespit olabilir)" notuyla işaretlenir; "yok say" önerilen bloklar silinmez, *Yok say* türüne alınır.
+- **Soru sırası:** bütün soru bloklarına *farklı* başlangıç numarası verildiyse sıra buna göre kurulur (her ders 1'den başlıyorsa okuma sırası aynen kalır).
+- Elle dokunduğunuz hiçbir şeyin üstüne yazılmaz: **kilitli tür/ders adı/harf, elle taşıdığınız/boyutlandırdığınız ya da satır-sütun eklediğiniz bloklar** korunur; yapay zekâ farklı düşünüyorsa blok kartında "elle ayarınız korundu" notu ve (konumsa) öneri düğmesi görünür.
+- Bütün uygulama **tek bir geri alma adımıdır**: **Önerileri geri al** düğmesi ya da Geri al. Yapay zekâdan sonra elle düzenleme yaptıysanız düğme bunu da geri alacağını sorar.
+- Yapay zekânın çizdiği ya da düzelttiği bloklar sıradan bloklardır: taşıma/boyutlandırma/ok düğmeleri, satır-sütun ekle/çıkar, böl/birleştir, **Bölüm ekle** ve sil aynen çalışır.
+
+Sınır: yapay zekâ kutuları ±%2'den fazla saparsa (özellikle sayı vermezse) otomatik oturma zayıflar; bu durumda blok kartındaki öneri/uyarıya bakıp elle düzeltin. Gerçek formlarla ilk denemede sonucu mutlaka tuvalde gözle kontrol edin ve işaretli bir formla deneyin.
+
 ## Yapay zekâ ve elle düzenleme birlikte
 İkisi aynı bloklar üzerinde, birbirini bozmadan çalışır:
 - Elle yaptığınız her ayar (blok türü, ders adı, şık harfleri, alfabe…) **kilitlenir**; yapay zekâ sonradan farklı bir öneri getirse bile onu **ezmez**. Bildirimde "Elle yaptığınız N ayar korundu" yazar, blok kartında "elle ayarınız korundu: ders adı" notu görünür.
 - Elle dokunmadığınız alanlara yapay zekâ önerisi uygulanır; bir alanı **boşaltırsanız** yapay zekâ onu yeniden önerebilir.
-- **Yapay zekâ geri al** yalnızca yapay zekânın son uygulamasını geri alır; elle ayarlar kalır. Yapay zekâ öneriden sonra geometriyi (taşıma, satır/sütun) elle düzeltmeye de devam edebilirsiniz.
+- **Önerileri geri al:** yalnızca ad/harf önerisinde (eski akış) yapay zekânın son uygulamasını geri alır, elle ayarlar kalır. Tam tanımada tek geri alma adımıdır (yapay zekâdan sonraki elle düzenlemeleri de geri alacaksa önce sorar). Yapay zekâ önerisinden sonra geometriyi (taşıma, satır/sütun) elle düzeltmeye de devam edebilirsiniz.
 
 ## Koşullar ve sınırlar
 - Form tamamen görünmeli, düz ve gölgesiz olmalı. Tarama için en az 200 dpi.
@@ -86,7 +110,7 @@ Tanıtılan harici formun **üzerine**, öğrenciye ait bilgilerin **dolu balonc
 - Bu özellikler yapay (sentetik) örnek formlarla ve çok sayıda deneme varyantıyla (dönük, perspektifli, gürültülü, JPG, pembe/mor/silik) sınandı. **Gerçek yayınevi formlarını** ilk kullanımda mutlaka işaretli bir örnekle deneyin; tutmayan bir form görürseniz örneğini gönderin.
 
 ## Yapay zekâ adımı (isteğe bağlı)
-Anahtar yoksa yalnızca "Yapay zekâ ile ders adı ve harfleri öner" düğmesi görünmez; yine de **"API'siz yapay zekâ"** düğmesiyle ücretsiz bir sohbet uygulamasından yardım alabilirsiniz. Ücretsiz seçeneklerin hepsi için bkz. **UCRETSIZ-YAPAY-ZEKA.md**. Desteklenen sağlayıcılar: **Anthropic (Claude), Google (Gemini), OpenAI** ve OpenAI uyumlu herhangi bir hizmet (örn. OpenRouter, Groq).
+Anahtar yoksa **"Yapay zekâ ile tam tanıma"** ve "Yalnızca ders adı ve harfleri öner" düğmeleri görünmez; yine de **"API'siz yapay zekâ"** düğmesiyle ücretsiz bir sohbet uygulamasından yardım alabilirsiniz. Ücretsiz seçeneklerin hepsi için bkz. **UCRETSIZ-YAPAY-ZEKA.md**. Desteklenen sağlayıcılar: **Anthropic (Claude), Google (Gemini), OpenAI** ve OpenAI uyumlu herhangi bir hizmet (örn. OpenRouter, Groq).
 
 **Kurulum (yönetici):** uygulamada **Yönetim → Yapay zekâ** sekmesi. Anahtarı yapıştırıp Kaydet deyin; anahtar yalnızca sunucuda (Apps Script **Betik özellikleri**) saklanır, bir daha ekranda gösterilmez (sadece son 4 hane). **Dene** düğmesi anahtarı ve seçilen modeli sınar.
 Aynı ayarlar elle de yazılabilir (Proje ayarları → Betik özellikleri): `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` (veya `GOOGLE_API_KEY`), `OPENAI_API_KEY`, uyumlu hizmet için `COMPAT_API_KEY` + `COMPAT_BASE_URL` + `COMPAT_MODEL` (+ `COMPAT_NAME`). Öncelik: `AI_PROVIDER` = `auto` | `anthropic` | `gemini` | `openai` | `compat`; seviye: `AI_TIER` = `auto` | `fast` | `balanced` | `best`.
@@ -104,7 +128,7 @@ Sınırlar: kullanıcı başına saatte 40, toplamda günde 1000 analiz (`Code.g
 3. **Dağıt → Dağıtımları yönet → kalem → Sürüm: Yeni sürüm → Dağıt.** Sonra yapay zekâ ekranında tekrar deneyin.
 Bu izin verilmeden de uygulama yapay zekâsız çalışır.
 
-Not (gizlilik): yapay zekâ adımında yalnızca **boş** form görüntüsü (üzerine blok kimlikleri çizilmiş) sağlayıcıya gönderilir; öğrenci verisi gönderilmez.
+Not (gizlilik): yapay zekâ adımında yalnızca **boş** form görüntüsü (üzerine blok kimlikleri ve cetvel çizilmiş) ve blok listesi sağlayıcıya gönderilir; öğrenci verisi gönderilmez.
 
 ## Okul ve öğrenci yönetimi
 - **Yönetim → Okullar**: "+ Okul ekle", satırda Düzenle / Sil (yönetici, il, ilçe yetkilisi; yetki alanı sunucuda denetlenir). Aktif kullanıcısı olan okul silinemez; silinen okulun öğrenci listesi de silinir, eski sonuçlar kalır.

@@ -727,13 +727,13 @@
   function resizeBubbles(b, d, bubbles) { b.bw = Math.max(4, r2(b.bw + d)); b.bh = Math.max(4, r2(b.bh + d)); return touch(b, bubbles); }
 
   /** Izgarayı gerçek baloncuklara oturtur: önce en iyi örtüşen küçük kaydırmayı arar (en çok ±1 aralık), sonra her sütun/satırı komşu baloncukların ortalamasına çeker.
-   *  Dönüş: { before, after, dx, dy, total } (örtüşen hücre sayıları). Baloncuk yoksa değişiklik yapmaz. */
-  function snapBlock(b, bubbles) {
+   *  Dönüş: { before, after, dx, dy, total } (örtüşen hücre sayıları). Baloncuk yoksa değişiklik yapmaz. opts.range: arama aralığı (ızgara aralığının katı, varsayılan 1). */
+  function snapBlock(b, bubbles, opts) {
     const total = b.rows * b.cols, tol = 0.5 * Math.min(b.bw, b.bh);
     const score = (dx, dy) => { let s = 0; for (let r = 0; r < b.rows; r++) for (let c = 0; c < b.cols; c++) if (nearestBubble(bubbles, b.xs[c] + dx, b.ys[r] + dy, tol)) s++; return s; };
     if (!bubbles || !bubbles.length) return { before: 0, after: 0, dx: 0, dy: 0, total };
     const before = score(0, 0);
-    const gx = b.cols > 1 ? (b.x1 - b.x0) / (b.cols - 1) : 1.6 * b.bw, gy = b.rows > 1 ? (b.y1 - b.y0) / (b.rows - 1) : 1.6 * b.bh, st = Math.max(1, 0.25 * Math.min(b.bw, b.bh)); let best = { s: before, dx: 0, dy: 0, d: 0 };
+    const rg = (opts && opts.range) || 1, gx = rg * (b.cols > 1 ? (b.x1 - b.x0) / (b.cols - 1) : 1.6 * b.bw), gy = rg * (b.rows > 1 ? (b.y1 - b.y0) / (b.rows - 1) : 1.6 * b.bh), st = Math.max(1, 0.25 * Math.min(b.bw, b.bh)); let best = { s: before, dx: 0, dy: 0, d: 0 };
     if (before < total) for (let dy = -gy; dy <= gy + 1e-6; dy += st) for (let dx = -gx; dx <= gx + 1e-6; dx += st) { const s = score(dx, dy), d = Math.hypot(dx, dy); if (s > best.s || (s === best.s && s > before && d < best.d)) best = { s, dx, dy, d }; }
     b.xs = b.xs.map(v => v + best.dx); b.ys = b.ys.map(v => v + best.dy);
     const bandY0 = b.ys[0] - 0.6 * b.bh, bandY1 = b.ys[b.rows - 1] + 0.6 * b.bh, bandX0 = b.xs[0] - 0.6 * b.bw, bandX1 = b.xs[b.cols - 1] + 0.6 * b.bw;

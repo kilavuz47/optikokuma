@@ -7,12 +7,14 @@
  *   · çerçeveyi tuvalde sürükleyerek taşıma, kenar/köşe tutamaçlarıyla büyütme-küçültme, ok tuşları ve düğmelerle MİLİM MİLİM (0,5 piksel adım) ayar
  *   · kenara satır/sütun ekleme-çıkarma, yanlış birleşmiş bloğu bölme (yatay/dikey, tuvalde tıklayarak), ayrı ama aynı olanı birleştirme
  *   · bulunamayan bölümü dikdörtgen çizerek ekleme (silik baskıda satır × sütun sayısını yazarak), baloncuklara oturtma, geri al / yinele
- * → isteğe bağlı yapay zekâ (Claude / Gemini / OpenAI / uyumlu; seviye: hızlı → en yetenekli; ya da API'siz: görüntüyü sohbet uygulamasına yapıştırıp yanıtı geri yapıştırma)
- * ders adı / harf önerir (konum üretmez) → işaretli bir formla dener → "Onayla ve kaydet".
+ * → isteğe bağlı yapay zekâ (Claude / Gemini / OpenAI / uyumlu; seviye: hızlı → en yetenekli; ya da API'siz: cetvelli görüntüyü + hazır istemi sohbet uygulamasına verip JSON yanıtını yapıştırma/dosya yükleme):
+ *   TAM TANIMA = bölüm kutuları, satır/sütun sayıları, yön, tür, ders adı, harfler, soru sırası (forms-ai.js). Yapay zekâ yaklaşık konum verir, kesin konumu görüntü işleme verir;
+ *   sonuç sıradaki bloklardır, yukarıdaki bütün elle düzenleme araçları onların üzerinde de çalışır; elle yaptıklarınız ezilmez, farklı öneriler "öneri" olarak bekler.
+ * → işaretli bir formla dener → "Onayla ve kaydet".
  */
 'use strict';
 
-const AU = { an: null, img: null, name: '', file: '', sel: '', frame: 'auto', aiSnap: null, aiNotes: [], aiAvail: null, ai: null, aiPick: { provider: '', tier: '' }, aiUsed: null, saved: null, match: null, busy: '', err: '',
+const AU = { an: null, img: null, name: '', file: '', sel: '', frame: 'auto', aiSnap: null, aiNotes: [], aiAvail: null, ai: null, aiPick: { provider: '', tier: '' }, aiUsed: null, aiMode: 'full', aiBoxes: [], showAiBoxes: true, aiReport: null, aiMark: null, saved: null, match: null, busy: '', err: '',
   zoom: 1, tool: '', step: 1, hist: [], fut: [], autosnap: true, showUncov: true, edited: false, drag: null, hover: null, k: 1, api: null };
 const AU_COL = { questions: '#e11d48', studentNo: '#2563eb', schoolCode: '#0d9488', booklet: '#9333ea', name: '#d97706', surname: '#92400e', ignore: '#94a3b8' };
 const AU_ROLES = [['questions', 'Soru bloğu'], ['studentNo', 'Öğrenci numarası'], ['schoolCode', 'Kurum kodu'], ['booklet', 'Kitapçık türü'], ['name', 'Ad (harf ızgarası)'], ['surname', 'Soyad (harf ızgarası)'], ['ignore', 'Yok say']];
@@ -69,7 +71,7 @@ function autoTab(pane, redraw) {
   }
   /** Çerçeve türünü elle seçip aynı görüntüyü yeniden çözümler (bloklara yapılan düzeltmeler sıfırlanır). */
   async function reframe(kind) {
-    if (!AU.img) return; AU.frame = kind; AU.busy = 'Çerçeve türüne göre yeniden çözümleniyor…'; AU.saved = null; AU.match = null; AU.aiSnap = null; AU.aiNotes = []; AU.aiUsed = null; resetEdit(); draw();
+    if (!AU.img) return; AU.frame = kind; AU.busy = 'Çerçeve türüne göre yeniden çözümleniyor…'; AU.saved = null; AU.match = null; AU.aiSnap = null; AU.aiNotes = []; AU.aiUsed = null; aiClear(); resetEdit(); draw();
     try {
       await new Promise(r => setTimeout(r, 30));
       const an = auAnalyze(AU.img, kind);
@@ -78,7 +80,7 @@ function autoTab(pane, redraw) {
     AU.busy = ''; draw();
   }
   async function load(f) {
-    AU.busy = 'Form çözümleniyor…'; AU.saved = null; AU.match = null; AU.aiSnap = null; AU.aiNotes = []; AU.aiUsed = null; AU.frame = 'auto'; AU.img = null; AU.err = ''; resetEdit(); draw();
+    AU.busy = 'Form çözümleniyor…'; AU.saved = null; AU.match = null; AU.aiSnap = null; AU.aiNotes = []; AU.aiUsed = null; aiClear(); AU.frame = 'auto'; AU.img = null; AU.err = ''; resetEdit(); draw();
     try {
       await new Promise(r => setTimeout(r, 30));
       const isPdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name || ''), img = await loadGray(isPdf ? (await pdfSources(f))[0] : f);
@@ -154,6 +156,15 @@ function autoTab(pane, redraw) {
         }
       }
     }
+    if (AU.showAiBoxes && AU.aiBoxes.length) {   // yapay zekânın kendi çizdiği kutular (mor, kesikli): otomatik tanımayla yan yana görülsün
+      const r = an.rectified, fs = Math.max(9, 11 * k); ctx.save(); ctx.strokeStyle = '#7c3aed'; ctx.fillStyle = '#7c3aed'; ctx.lineWidth = 1.8 * lw; ctx.setLineDash([9 * lw, 5 * lw]); ctx.font = `700 ${fs}px sans-serif`; ctx.textBaseline = 'top';
+      AU.aiBoxes.forEach(a => { const x0 = a.box[0] * r.w, y0 = a.box[1] * r.h, x1 = a.box[2] * r.w, y1 = a.box[3] * r.h; ctx.strokeRect(x0, y0, x1 - x0, y1 - y0); const t = 'YZ ' + (AU_SHORT[a.role] || '') + (a.name ? ' · ' + a.name : ''), tw = ctx.measureText(t).width + 6; ctx.fillRect(x1 - tw, y1, tw, fs + 3); ctx.fillStyle = '#fff'; ctx.fillText(t, x1 - tw + 3, y1 + 1.5); ctx.fillStyle = '#7c3aed'; });
+      ctx.restore();
+    }
+    if (b && b.ai && b.ai.sugg) {   // seçili bloğun bekleyen yapay zekâ önerisi
+      const s = b.ai.sugg, bw = s.bw / 2 + 3, bh = s.bh / 2 + 3, x0 = s.xs[0] - bw, x1 = s.xs[s.xs.length - 1] + bw, y0 = s.ys[0] - bh, y1 = s.ys[s.ys.length - 1] + bh;
+      ctx.save(); ctx.strokeStyle = '#7c3aed'; ctx.lineWidth = 2.6 * lw; ctx.setLineDash([3 * lw, 4 * lw]); ctx.strokeRect(x0, y0, x1 - x0, y1 - y0); ctx.fillStyle = 'rgba(124,58,237,.7)'; s.ys.forEach(y => s.xs.forEach(x => { ctx.beginPath(); ctx.arc(x, y, Math.max(1.5, 0.12 * s.bw), 0, 7); ctx.fill(); })); ctx.restore();
+    }
     const d = AU.drag; if (d && d.kind === 'rect') { ctx.save(); ctx.strokeStyle = '#2563eb'; ctx.fillStyle = 'rgba(37,99,235,.12)'; ctx.lineWidth = 2.5 * lw; ctx.setLineDash([8 * lw, 5 * lw]); const x = Math.min(d.x0, d.x1), y = Math.min(d.y0, d.y1), w = Math.abs(d.x1 - d.x0), hh = Math.abs(d.y1 - d.y0); ctx.fillRect(x, y, w, hh); ctx.strokeRect(x, y, w, hh); ctx.restore(); }
   }
   function paint() {
@@ -165,10 +176,12 @@ function autoTab(pane, redraw) {
   }
   const paintNow = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; paint(); }); };
   /** Yapay zekâya gidecek görüntü: düzeltilmiş form + blok kimlikleri (uzun kenar ≤ 1568 px) */
-  function overlayJpeg() {
-    const an = AU.an, r = an.rectified, sc = Math.min(1, 1568 / Math.max(r.w, r.h)), c = document.createElement('canvas'); c.width = Math.round(r.w * sc); c.height = Math.round(r.h * sc);
-    const x = c.getContext('2d'); if (!base) paint(); x.drawImage(base.c, 0, 0, c.width, c.height); const keep = AU.sel; AU.sel = ''; overlay(x, an, sc, { noDots: true, below: true }); AU.sel = keep;
-    return c.toDataURL('image/jpeg', 0.82).split(',')[1];
+  function overlayJpeg(o) {
+    o = o || {}; const an = AU.an, r = an.rectified, sc = Math.min(1, 1568 / Math.max(r.w, r.h)), c = document.createElement('canvas'); c.width = Math.round(r.w * sc); c.height = Math.round(r.h * sc);
+    const x = c.getContext('2d'); if (!base) paint(); x.drawImage(base.c, 0, 0, c.width, c.height);
+    if (o.ruler) AiLayout.drawRuler(x, c.width, c.height);   // yapay zekâ konumu ölçebilsin: 0–1000 cetvel ve ızgara
+    if (o.outlines !== false) { const keep = AU.sel; AU.sel = ''; overlay(x, an, sc, { noDots: true, below: true }); AU.sel = keep; }
+    return c.toDataURL('image/jpeg', 0.84).split(',')[1];
   }
   const toCv = e => { const b = cv.getBoundingClientRect(), s = cv.width / b.width; return { x: (e.clientX - b.left) * s, y: (e.clientY - b.top) * s }; };
   /** Noktayı içeren en küçük blok (iç içe/üst üste bloklarda küçük olan öncelikli). */
@@ -190,7 +203,7 @@ function autoTab(pane, redraw) {
   function restore(s) { const o = JSON.parse(s); AU.an.blocks = o.blocks; AU.an.keepOrder = o.order; AU.sel = AU.an.blocks.some(b => b.id === o.sel) ? o.sel : ''; refresh(); }
   function undo() { if (!AU.hist.length) return toast('Geri alınacak işlem yok.'); AU.fut.push(snapshot()); restore(AU.hist.pop()); lastKey = ''; }
   function redo() { if (!AU.fut.length) return toast('Yinelenecek işlem yok.'); AU.hist.push(snapshot()); restore(AU.fut.pop()); lastKey = ''; }
-  function commit(before) { AU.hist.push(before); if (AU.hist.length > 80) AU.hist.shift(); AU.fut = []; AU.edited = true; }
+  function commit(before) { AU.hist.push(before); if (AU.hist.length > 80) { AU.hist.shift(); if (AU.aiMark != null && --AU.aiMark < 0) AU.aiMark = null; } AU.fut = []; AU.edited = true; }
   /** Bir düzenleme yapar: fn() false dönerse hiçbir şey değişmemiş sayılır. key aynıysa ve 1,5 sn içindeyse tek geri alma adımı olarak birleşir. */
   function edit(key, fn, opts) {
     opts = opts || {}; const before = snapshot(), res = fn(); if (res === false) return false;
@@ -389,6 +402,58 @@ function autoTab(pane, redraw) {
     toast((n ? `Yapay zekâ ${n} blok için öneri uyguladı. Kontrol edin.` : 'Yapay zekâ mevcut tahminlerle aynı görüşte.') + (nk ? ` Elle yaptığınız ${nk} ayar korundu.` : ''), 'ok'); return n;
   }
   function aiUndo() { if (!AU.aiSnap) return; AU.aiSnap.forEach(s => { const b = AU.an.blocks.find(x => x.id === s.id); if (b) { b.role = s.role; b.axis = s.axis; b.name = s.name; b.labels = s.labels; b.ai = s.ai; } }); AU.aiSnap = null; AU.aiNotes = []; AU.aiUsed = null; draw(); }
+  /* ---------------------------------------------------------------- TAM TANIMA: yapay zekâ konumları/sayıları da bulur (forms-ai.js), elle düzenleme aynen sürer */
+  const AIH = { auAxis, auGuessRole, auK, auAlpha, short: AU_SHORT };
+  function aiClear() { AU.aiBoxes = []; AU.aiReport = null; AU.aiMark = null; }
+  /** Normalleştirilmiş yanıtı bloklara uygular: tek geri alma adımı; ardından bütün elle düzenleme araçları bu bloklarda da çalışır. */
+  function applyLayout(resp, src) {
+    let rep = null;
+    const done = edit(null, () => { rep = AiLayout.apply(AU.an, resp, AIH); AU.sel = ''; return rep.changed; }, { structural: true });
+    if (!rep) return null;
+    AU.aiBoxes = rep.boxes; AU.aiReport = { lines: rep.lines, src: src || '' }; AU.aiMark = done ? AU.hist.length - 1 : null; AU.aiSnap = null;
+    if (resp.title && !AU.name) AU.name = String(resp.title).slice(0, 60); AU.aiNotes = (resp.notes || []).slice(0, 6);
+    toast(rep.lines[0], 'ok', 7000); draw(); return rep;
+  }
+  async function aiUndoLayout() {
+    if (AU.aiMark == null) return; const extra = AU.hist.length - AU.aiMark - 1;
+    if (extra > 0 && !(await confirmBox(`Yapay zekâ uygulamasından sonra ${extra} düzenleme daha yaptınız; hepsi birlikte geri alınır. Devam edilsin mi?`, 'Geri al', true))) return;
+    while (AU.hist.length > AU.aiMark) undo();
+    aiClear(); AU.aiUsed = null; AU.aiNotes = []; draw();
+  }
+  function applySugg(b) {
+    const ok = edit(null, () => AiLayout.applySuggestion(AU.an, b) ? true : false);
+    if (ok) toast(`Yapay zekâ önerisi uygulandı: ${b.rows} satır × ${b.cols} sütun, ${b.n}/${b.rows * b.cols} baloncuk oturdu. Elle ince ayar yapabilirsiniz.`, 'ok', 6000);
+  }
+  /** Yanıt metnini uygular: konum/sayı içeriyorsa tam tanıma, yalnızca ad/harf ise eski basit akış. Hata: Error fırlatır. */
+  function aiApplyText(text, src) {
+    const resp = AiLayout.parse(text, AU.an); AU.aiUsed = { name: src, model: '', tier: '', failed: 0 };
+    if (resp.geometry) return applyLayout(resp, src);
+    const r = parseAiPaste(text); applyAi(r); if (r.unknown.length) toast('Şu kimlikler formda yok, atlandı: ' + r.unknown.slice(0, 5).join(', '), 'bad', 6000); draw(); return null;
+  }
+  async function aiFullRun(btn) {
+    const an = AU.an; btn.disabled = true; const old = btn.textContent; btn.textContent = 'Yapay zekâ formu inceliyor (yarım dakikaya kadar sürebilir)…';
+    try {
+      const r = await api('aiAnalyzeForm', { mode: 'layout', image: overlayJpeg({ ruler: true, outlines: true }), mediaType: 'image/jpeg', provider: AU.aiPick.provider || undefined, tier: AU.aiPick.tier || undefined, blocks: AiLayout.blocksInfo(an) }, { timeout: 170000 });
+      AU.aiUsed = { name: r.providerName || r.provider || '', model: r.model || '', tier: r.tier || '', failed: (r.tried || []).filter(t => !t.ok).length };
+      const resp = AiLayout.normalize(r, an);
+      if (resp.geometry) applyLayout(resp, AU.aiUsed.name);
+      else { applyAi({ blocks: resp.entries.filter(e => e.id && an.blocks.some(b => b.id === e.id)).map(e => ({ id: e.id, role: e.role, name: e.name, labels: e.labels.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12), confidence: e.confidence, note: e.note })), title: resp.title, notes: resp.notes }); draw(); }
+    } catch (e) {
+      if (e.code === 'AISCOPE') modal('Yapay zekâ için Apps Script izni gerekli', h('div', null, h('p', null, e.message), h('p', { class: 'small muted' }, 'Bu izin verilene kadar form tanıma yapay zekâsız (yalnızca görüntü işlemeyle) çalışmaya devam eder.')), { buttons: [{ label: 'Tamam', cls: 'primary' }] });
+      else toast(e.code === 'NOAI' ? 'Yapay zekâ anahtarı tanımlı değil; tanıma yapay zekâsız devam eder.' : e.message, 'bad', 9000);
+      btn.disabled = false; btn.textContent = old;
+    }
+  }
+  /** Bloğun üstündeki yapay zekâ notu + (varsa) bekleyen öneri düğmesi. */
+  function aiLine(b) {
+    const a = b.ai; if (!a) return null; const parts = [];
+    if (a.added) parts.push('yapay zekâ ekledi'); else if (a.ch && a.ch.length) parts.push(a.ch.join(', ') + ' önerdi'); else if (!a.unseen && !a.sugg) parts.push('aynı görüşte');
+    if (a.unseen) parts.push('yapay zekâ bu bloğu listesine almadı (yanlış tespit olabilir)');
+    if (a.kept && a.kept.length) parts.push('elle ayarınız korundu: ' + a.kept.join(', '));
+    if (a.note) parts.push(a.note);
+    return h('div', { class: 'small', style: { color: a.unseen ? 'var(--warn)' : 'var(--brand)', marginTop: '.2rem' } }, 'Yapay zekâ: ' + parts.join(' · '),
+      a.sugg ? h('div', { style: { marginTop: '.25rem' } }, h('button', { class: 'btn sm', type: 'button', 'data-act': 'ai-sugg', title: 'Önerilen konum tuvalde mor kesikli çizgiyle görünür', onclick: () => applySugg(b) }, `Yapay zekâ önerisini uygula (${a.sugg.rows}×${a.sugg.cols}, ${a.sugg.n}/${a.sugg.total} baloncuk)`)) : null);
+  }
   /* ---------------------------------------------------------------- API'siz yapay zekâ: görüntü + hazır istem → herhangi bir (ücretsiz) sohbet uygulaması → JSON yanıtını geri yapıştır */
   const AI_ROLE_TXT = '"questions" (answer bubbles for numbered questions), "studentNo" (digit columns for the student number), "schoolCode" (digit columns for a school/institution code), "booklet" (choose booklet type A/B/C/D), "name" (letter grid where the student FIRST NAME is coded: one column per letter position, one row per alphabet letter), "surname" (the same for the SURNAME), "ignore" (anything else, e.g. printed letters or a sample)';
   function aiPromptText() {
@@ -418,23 +483,45 @@ function autoTab(pane, redraw) {
     try { ta.focus(); ta.select(); return document.execCommand('copy'); } catch (e) { return false; }
   }
   function aiManualDlg() {
-    const b64 = overlayJpeg(), url = 'data:image/jpeg;base64,' + b64, prompt = aiPromptText();
-    const ta = h('textarea', { id: 'au-ai-prompt', rows: 6, readonly: true, spellcheck: false, style: { width: '100%', fontSize: '.78rem' }, onclick: e => e.target.select() }, prompt), paste = h('textarea', { id: 'au-ai-paste', rows: 6, placeholder: 'Sohbet uygulamasının verdiği JSON yanıtını buraya yapıştırın…', spellcheck: false, style: { width: '100%', fontSize: '.8rem' } });
-    const blob = () => { const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new Blob([u], { type: 'image/jpeg' }); };
+    const st = { mode: AU.aiMode === 'labels' ? 'labels' : 'full', ruler: true, outl: true, b64: '' };
+    const img = h('img', { alt: 'Bloklar numaralı form', style: { maxHeight: '190px', maxWidth: '45%', border: '1px solid var(--line)', borderRadius: '6px' } });
+    const ta = h('textarea', { id: 'au-ai-prompt', rows: 6, readonly: true, spellcheck: false, style: { width: '100%', fontSize: '.78rem' }, onclick: e => e.target.select() });
+    const paste = h('textarea', { id: 'au-ai-paste', rows: 6, placeholder: 'Sohbet uygulamasının verdiği JSON yanıtını buraya yapıştırın ya da yanıtı dosya olarak yükleyin…', spellcheck: false, style: { width: '100%', fontSize: '.8rem' } });
+    const info = h('div', { class: 'small muted', id: 'au-ai-fileinfo' });
+    const blob = () => { const bin = atob(st.b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new Blob([u], { type: 'image/jpeg' }); };
+    const rulerCb = h('input', { type: 'checkbox', id: 'au-ai-ruler', checked: true, onchange: e => { st.ruler = e.target.checked; rebuild(); } }), outlCb = h('input', { type: 'checkbox', id: 'au-ai-outl', checked: true, onchange: e => { st.outl = e.target.checked; rebuild(); } });
+    const rebuild = () => {
+      const full = st.mode === 'full'; rulerCb.disabled = !full; outlCb.disabled = !full;
+      st.b64 = overlayJpeg({ ruler: full && st.ruler, outlines: full ? st.outl : true }); img.src = 'data:image/jpeg;base64,' + st.b64;
+      ta.value = full ? AiLayout.promptText(AU.an, { ruler: st.ruler, outlines: st.outl }) : aiPromptText();
+    };
     const copyImg = async () => {
-      try { const im = new Image(); await new Promise((res, rej) => { im.onload = res; im.onerror = rej; im.src = url; }); const c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight; c.getContext('2d').drawImage(im, 0, 0); const png = await new Promise(r => c.toBlob(r, 'image/png')); await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]); toast('Görüntü panoya kopyalandı. Sohbet kutusuna Ctrl+V ile yapıştırın.', 'ok'); }
+      try { const im = new Image(); await new Promise((res, rej) => { im.onload = res; im.onerror = rej; im.src = img.src; }); const c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight; c.getContext('2d').drawImage(im, 0, 0); const png = await new Promise(r => c.toBlob(r, 'image/png')); await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]); toast('Görüntü panoya kopyalandı. Sohbet kutusuna Ctrl+V ile yapıştırın.', 'ok'); }
       catch (e) { toast('Bu tarayıcı görüntüyü panoya kopyalayamadı; "Görüntüyü indir"i kullanıp sohbet uygulamasına dosya olarak yükleyin.', 'bad', 7000); }
     };
-    modal('API anahtarı olmadan yapay zekâ', h('div', { id: 'au-ai-manual' },
-      h('p', { class: 'small' }, 'Ücretsiz bir sohbet uygulaması (Gemini, ChatGPT, Claude, Copilot, Le Chat…) görüntü yüklemeyi destekliyorsa API anahtarına gerek kalmaz. Yalnızca BOŞ form görüntüsü ve blok listesi gider; öğrenci bilgisi yoktur.'),
-      h('div', { class: 'au-step' }, h('b', null, '1. Görüntü'), h('div', { class: 'row', style: { marginTop: '.3rem', alignItems: 'flex-start' } }, h('img', { src: url, alt: 'Bloklar numaralı form', style: { maxHeight: '170px', maxWidth: '45%', border: '1px solid var(--line)', borderRadius: '6px' } }),
-        h('div', { class: 'row', style: { flexDirection: 'column', alignItems: 'stretch', gap: '.3rem' } }, h('button', { class: 'btn sm', id: 'au-ai-dl', onclick: () => download('form-bloklari.jpg', blob()) }, 'Görüntüyü indir'), h('button', { class: 'btn sm', id: 'au-ai-copyimg', onclick: copyImg }, 'Görüntüyü kopyala')))),
-      h('div', { class: 'au-step' }, h('b', null, '2. İstem'), h('div', { class: 'small muted' }, 'Sohbete önce görüntüyü, sonra bu metni gönderin (istem İngilizcedir; yanıtın dili önemli değil).'), ta, h('button', { class: 'btn sm', id: 'au-ai-copyprompt', style: { marginTop: '.3rem' }, onclick: async () => toast(await copyText(prompt, ta) ? 'İstem kopyalandı.' : 'Kopyalanamadı: metne tıklayıp Ctrl+C yapın.', 'ok') }, 'İstemi kopyala')),
-      h('div', { class: 'au-step' }, h('b', null, '3. Yanıt'), h('div', { class: 'small muted' }, 'Yanıt { ile başlayan tek bir JSON olmalı. Kod çiti ya da açıklama olsa da sorun değil; bulunup okunur. Uygulamadan sonra "Önerileri geri al" ile dönebilirsiniz.'), paste)),
-    { buttons: [{ label: 'Vazgeç' }, { label: 'Yanıtı uygula', cls: 'primary', fn: () => {
-      let r; try { r = parseAiPaste(paste.value); } catch (e) { toast(e.message, 'bad', 8000); return false; }
-      AU.aiUsed = { name: 'Elle (sohbet uygulaması)', model: '', tier: '', failed: 0 }; applyAi(r); if (r.unknown.length) toast('Şu kimlikler formda yok, atlandı: ' + r.unknown.slice(0, 5).join(', '), 'bad', 6000); draw();
-    } }] });
+    let M = null;
+    const submit = src => { try { aiApplyText(paste.value, src || 'Elle (sohbet uygulaması)'); } catch (e) { toast(e.message, 'bad', 9000); return false; } };
+    const readFile = async f => {
+      if (/\.(docx?|pdf|xlsx?|pptx?|zip|png|jpe?g)$/i.test(f.name)) return toast('Bu dosya türü okunamaz. Yanıtı metin/JSON dosyası (.json, .txt) olarak yükleyin ya da metnini yapıştırın.', 'bad', 8000);
+      if (f.size > 3e6) return toast('Dosya çok büyük (3 MB üstü).', 'bad');
+      let t = ''; try { t = await f.text(); } catch (e) { return toast('Dosya okunamadı.', 'bad'); }
+      paste.value = t; info.textContent = `Yüklendi: ${f.name} (${Math.max(1, Math.round(f.size / 1024))} KB).`;
+      if (submit('Elle (dosya: ' + f.name.slice(0, 30) + ')') !== false) { if (M) M.close(); } else info.textContent += ' Uygulanamadı; metni düzeltip "Yanıtı uygula"ya basın.';
+    };
+    const fileIn = h('input', { type: 'file', id: 'au-ai-file', accept: '.json,.txt,.md,.csv,text/plain,application/json', class: 'hidden', onchange: e => { const f = e.target.files[0]; e.target.value = ''; if (f) readFile(f); } });
+    paste.addEventListener('dragover', e => { e.preventDefault(); }); paste.addEventListener('drop', e => { const f = e.dataTransfer && e.dataTransfer.files[0]; if (f) { e.preventDefault(); readFile(f); } });
+    const radio = (v, id, label, sub) => h('label', { class: 'row', style: { gap: '.4rem', alignItems: 'flex-start', cursor: 'pointer' } }, h('input', { type: 'radio', name: 'au-ai-mode', id, checked: st.mode === v, onchange: () => { st.mode = v; AU.aiMode = v; rebuild(); } }), h('span', null, h('b', null, label), h('div', { class: 'small muted' }, sub)));
+    rebuild();
+    M = modal('API anahtarı olmadan yapay zekâ', h('div', { id: 'au-ai-manual' },
+      h('p', { class: 'small' }, 'Ücretsiz bir sohbet uygulaması (Gemini, ChatGPT, Claude, Copilot, Le Chat…) görüntü yüklemeyi destekliyorsa API anahtarına gerek kalmaz. Yalnızca BOŞ form görüntüsü ve blok listesi gider; öğrenci bilgisi yoktur. Yanıt gelince otomatik tanımayla birleştirilir: yapay zekânın kutuları mor kesikli çizgiyle yan yana görünür, bütün elle düzenleme araçları çalışmaya devam eder.'),
+      h('div', { class: 'au-step' }, radio('full', 'au-ai-mode-full', 'Tam tanıma (önerilir)', 'Yapay zekâ bölümlerin yerini, satır/sütun sayılarını, ad-soyad ızgaralarını, ders adlarını ve harfleri bulur; eksik bölümleri ekler.'), radio('labels', 'au-ai-mode-labels', 'Yalnızca ders adı ve harfler', 'Bulunan bloklar doğruysa yeterlidir; konum üretmez.')),
+      h('div', { class: 'au-step' }, h('b', null, '1. Görüntü'), h('div', { class: 'row', style: { marginTop: '.3rem', alignItems: 'flex-start' } }, img,
+        h('div', { class: 'row', style: { flexDirection: 'column', alignItems: 'stretch', gap: '.3rem' } }, h('button', { class: 'btn sm', id: 'au-ai-dl', onclick: () => download('form-bloklari.jpg', blob()) }, 'Görüntüyü indir'), h('button', { class: 'btn sm', id: 'au-ai-copyimg', onclick: copyImg }, 'Görüntüyü kopyala'),
+          h('label', { class: 'small row', style: { gap: '.3rem', cursor: 'pointer' } }, rulerCb, 'Cetvel ve ızgara ekle (konum için önerilir)'), h('label', { class: 'small row', style: { gap: '.3rem', cursor: 'pointer' } }, outlCb, 'Bulunan blokları çiz (b1, b2…)')))),
+      h('div', { class: 'au-step' }, h('b', null, '2. İstem'), h('div', { class: 'small muted' }, 'Sohbete önce görüntüyü, sonra bu metni gönderin (istem İngilizcedir; yanıtın dili önemli değil). Yanıtı JSON olarak vermesini ister; dosya olarak verirse de yükleyebilirsiniz.'), ta, h('button', { class: 'btn sm', id: 'au-ai-copyprompt', style: { marginTop: '.3rem' }, onclick: async () => toast(await copyText(ta.value, ta) ? 'İstem kopyalandı.' : 'Kopyalanamadı: metne tıklayıp Ctrl+C yapın.', 'ok') }, 'İstemi kopyala')),
+      h('div', { class: 'au-step' }, h('b', null, '3. Yanıt'), h('div', { class: 'small muted' }, 'Yanıt { ile başlayan tek bir JSON olmalı. Kod çiti ya da açıklama olsa da sorun değil; bulunup okunur. Yapıştırın ya da dosya yükleyin (yükleyince hemen uygulanır). Uygulamadan sonra "Önerileri geri al" ile dönebilirsiniz.'), paste,
+        h('div', { class: 'row', style: { marginTop: '.3rem' } }, h('button', { class: 'btn sm', id: 'au-ai-filebtn', type: 'button', onclick: () => fileIn.click() }, 'Yanıt dosyası yükle (.json, .txt)'), info), fileIn)),
+    { buttons: [{ label: 'Vazgeç' }, { label: 'Yanıtı uygula', cls: 'primary', fn: () => submit() }] });
   }
   /** Seçime göre kullanılacak sağlayıcı ve (tahmini) model: sunucunun yaptığı en yeni model keşfi sonucu. */
   function aiPlanText() {
@@ -487,7 +574,7 @@ function autoTab(pane, redraw) {
       h('div', { class: 'small muted', style: { marginTop: '.3rem' } }, isQ ? `Sorular ${q0 + 1}–${q0 + auQn(b)} (${auQn(b)} soru)` : b.role === 'ignore' ? 'Okumaya katılmaz.' : b.role === 'booklet' ? 'Kitapçık türü işareti' : AU_NAMEROLE(b.role) ? `${auQn(b)} harflik ${b.role === 'name' ? 'ad' : 'soyad'} alanı (öğrenci adını/soyadını okur)` : `${auQn(b)} haneli ${b.role === 'studentNo' ? 'öğrenci numarası' : 'kurum kodu'}`,
         isQ && b.axis === 'row' && b.rows >= 2 ? h('button', { class: 'btn sm ghost', style: { marginLeft: '.6rem' }, onclick: () => splitDlg(b) }, 'Böl…') : null),
       b.why ? h('div', { class: 'small', style: { color: 'var(--warn)', marginTop: '.2rem' } }, b.why) : null,
-      b.ai ? h('div', { class: 'small', style: { color: 'var(--brand)', marginTop: '.2rem' } }, `Yapay zekâ: ${b.ai.ch.length ? b.ai.ch.join(', ') + ' önerdi' : 'aynı görüşte'}${b.ai.kept && b.ai.kept.length ? ' · elle ayarınız korundu: ' + b.ai.kept.join(', ') : ''}${b.ai.note ? ' · ' + b.ai.note : ''}`) : null);
+      aiLine(b));
     rows.set(b.id, el); return el;
   }
   function renderList() {
@@ -544,6 +631,7 @@ function autoTab(pane, redraw) {
       h('span', { class: 'au-sep' }), h('span', { class: 'small muted' }, 'Yakınlaştır'), ...[1, 2, 3, 4, 6].map(v => h('button', { class: 'btn sm' + (Math.abs(z - v) < 0.05 ? ' primary' : ''), type: 'button', id: 'au-z-' + v, onclick: () => setZoom(v, v > 1) }, v === 1 ? 'Sığdır' : '×' + v)), eBtn('au-focus', 'Bloğa git', fitSel, '', 'Seçili bloğu büyüt ve ortala')),
       h('div', { class: 'row', style: { gap: '.8rem', marginTop: '.25rem' } },
         h('label', { class: 'small row', style: { gap: '.3rem', cursor: 'pointer' } }, h('input', { type: 'checkbox', id: 'au-showb', checked: AU.showUncov, onchange: e => { AU.showUncov = e.target.checked; paint(); } }), 'Hiçbir bloğa girmeyen baloncukları göster (turuncu)'),
+        AU.aiBoxes.length ? h('label', { class: 'small row', style: { gap: '.3rem', cursor: 'pointer' } }, h('input', { type: 'checkbox', id: 'au-showai', checked: AU.showAiBoxes, onchange: e => { AU.showAiBoxes = e.target.checked; paint(); } }), 'Yapay zekânın kutularını göster (mor kesikli)') : null,
         h('label', { class: 'small row', style: { gap: '.3rem', cursor: 'pointer' } }, h('input', { type: 'checkbox', id: 'au-autosnap', checked: AU.autosnap, onchange: e => { AU.autosnap = e.target.checked; } }), 'Sürükleyip bırakınca baloncuklara oturt')));
   }
 
@@ -567,14 +655,16 @@ function autoTab(pane, redraw) {
     barEl = h('div', { class: 'au-bar', id: 'au-bar' }); editBox = h('div', { id: 'au-edit' }); summary = h('div', { id: 'au-summary' }); listEl = h('div', { class: 'blocks', id: 'au-blocks' });
     if (AU.match) root.append(h('div', { class: 'alert info', id: 'au-match' }, `Bu form zaten kayıtlı görünüyor: "${AU.match.name}" (örtüşme %${Math.round(AU.match.score * 100)}). Aynı formu tekrar kaydetmeniz gerekmez; sınav ayarlarında o şablonu seçin.`));
     an.warnings.forEach(w => root.append(h('div', { class: 'alert warn' }, w)));
-    const aiBtn = h('button', { class: 'btn', id: 'au-ai', onclick: ev => aiRun(ev.currentTarget) }, 'Yapay zekâ ile ders adı ve harfleri öner'), plan = aiPlanText();
+    const aiBtn = h('button', { class: 'btn', id: 'au-ai', title: 'Konum üretmez; yalnızca bulunan blokların ders adı, harf ve türünü önerir', onclick: ev => aiRun(ev.currentTarget) }, 'Yalnızca ders adı ve harfleri öner'), plan = aiPlanText();
+    const aiFull = h('button', { class: 'btn primary', id: 'au-ai-full', title: 'Yapay zekâ bölümlerin yerini, satır/sütun sayısını, ad-soyad ızgarasını, ders adı ve harfleri bulur; sonucu elle düzeltebilirsiniz', onclick: ev => aiFullRun(ev.currentTarget) }, 'Yapay zekâ ile tam tanıma');
     root.append(h('div', { class: 'review wide' },
       h('div', { class: 'au-left' }, h('div', { class: 'card' }, h('h3', null, 'Tanınan düzen'), h('p', { class: 'small muted', style: { marginTop: 0 } }, `${an.nBubbles} baloncuk bulundu, ${an.blocks.length} blok. Renkli çerçeveler tanınan bloklardır. Birine tıklayın: baloncuk daireleri, okuma harfleri/rakamları ve soru numaraları görünür; çerçeveyi sürükleyip kenar/köşe kutucuklarından çekebilirsiniz. Daireler gerçek baloncuklarla çakışmalı (kırmızı daire = o yerde baloncuk bulunamadı).`), barEl, wrap, h('div', { class: 'chips', style: { marginTop: '.4rem' } }, AU_ROLES.map(([v, l]) => h('span', { class: 'chip', style: { borderLeft: '4px solid ' + AU_COL[v] } }, l)))),
         h('div', { class: 'card', id: 'au-editcard' }, h('h3', null, 'Seçili bloğu düzenle'), editBox)),
       h('div', null,
         h('div', { class: 'card' }, h('h3', null, 'Bloklar'), listEl,
           AU.aiAvail ? aiPicker() : null,
-          h('div', { class: 'row', style: { marginTop: '.6rem' } }, AU.aiAvail ? aiBtn : null, h('button', { class: 'btn', id: 'au-ai-manualbtn', title: 'Anahtar gerekmez: görüntüyü ve hazır istemi kendi sohbet uygulamanıza yapıştırır, yanıtı buraya getirirsiniz', onclick: aiManualDlg }, 'API\'siz yapay zekâ (sohbet uygulamasıyla)'), AU.aiSnap ? h('button', { class: 'btn ghost', id: 'au-ai-undo', onclick: aiUndo }, 'Önerileri geri al') : null),
+          h('div', { class: 'row', style: { marginTop: '.6rem' } }, AU.aiAvail ? aiFull : null, AU.aiAvail ? aiBtn : null, h('button', { class: 'btn' + (AU.aiAvail ? '' : ' primary'), id: 'au-ai-manualbtn', title: 'Anahtar gerekmez: cetvelli görüntüyü ve hazır istemi kendi sohbet uygulamanıza verirsiniz; JSON yanıtını yapıştırır ya da dosya olarak yüklersiniz', onclick: aiManualDlg }, 'API\'siz yapay zekâ (sohbet uygulamasıyla)'), AU.aiSnap || AU.aiMark != null ? h('button', { class: 'btn ghost', id: 'au-ai-undo', onclick: AU.aiSnap ? aiUndo : aiUndoLayout }, 'Önerileri geri al') : null),
+          AU.aiReport ? h('div', { class: 'alert info', id: 'au-ai-report' }, h('b', null, 'Yapay zekâ sonucu' + (AU.aiReport.src ? ' · ' + AU.aiReport.src : '')), ...AU.aiReport.lines.map(l => h('div', { class: 'small' }, l)), h('div', { class: 'small muted' }, 'Sağdaki bloklara yapay zekâ notu eklendi. Mor kesikli kutular yapay zekânın çizdikleridir, renkli çerçeveler otomatik tanımadır; ikisi de elle düzenlenebilir.')) : null,
           AU.aiAvail && plan ? h('p', { class: 'small muted', id: 'au-ai-plan' }, `Kullanılacak: ${plan} (en yeni sürüm sunucudan otomatik seçilir; sağlayıcı yanıt vermezse yedeğe geçilir).`) : null,
           AU.aiUsed ? h('p', { class: 'small', id: 'au-ai-used', style: { color: 'var(--brand)' } }, `Son öneri: ${AU.aiUsed.name}${AU.aiUsed.model ? ' · ' + AU.aiUsed.model : ''}${AU.aiUsed.failed ? ` · ${AU.aiUsed.failed} deneme başarısız olup yedek kullanıldı` : ''}`) : null,
           AU.aiAvail === false ? h('p', { class: 'small muted' }, 'Otomatik yapay zekâ önerisi kapalı (yönetici "Yönetim ▸ Yapay zekâ" bölümünden bir sağlayıcının anahtarını eklemedi). Tanıma yapay zekâsız çalışır; ders adlarını elle yazabilir ya da yukarıdaki "API\'siz yapay zekâ" düğmesiyle ücretsiz bir sohbet uygulamasından yardım alabilirsiniz.') : null,
