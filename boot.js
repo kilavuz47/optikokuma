@@ -1,12 +1,13 @@
 /* boot.js — başlatma, servis çalışanı kaydı, adres yönlendirme (#/kayit = herkese açık üyelik sayfası) */
 'use strict';
 
-const isRegisterRoute = () => /^#\/kayit/.test(location.hash), isPortalRoute = () => /^#\/ogrenci/.test(location.hash);
-const renderPublicRoute = () => isPortalRoute() ? App.renderPortal() : App.renderRegister();
+const isRegisterRoute = () => /^#\/kayit/.test(location.hash), isPortalRoute = () => /^#\/ogrenci/.test(location.hash), isGuideRoute = () => /^#\/kilavuz/.test(location.hash);
+const isPublicRoute = () => isRegisterRoute() || isPortalRoute() || isGuideRoute();
+const renderPublicRoute = () => isGuideRoute() ? App.renderGuidePublic() : isPortalRoute() ? App.renderPortal() : App.renderRegister();
 
-App.start = async function () {
+App.start = async function (view) {
   App.renderShell();
-  const first = 'scan';
+  const first = view || 'scan';
   App.go(first);
   try { await refreshBase(); if (App.state.view === first) App.go(first); }
   catch (e) { if (e.code !== 'AUTH') toast(isNetErr(e) ? 'Çevrimdışı: kayıtlı veriler kullanılıyor.' : e.message, isNetErr(e) ? '' : 'bad'); }
@@ -30,10 +31,10 @@ App.backToApp = function () {
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
     try { await navigator.serviceWorker.register('sw.js'); } catch (e) { console.warn('Servis çalışanı kaydedilemedi', e); }
   }
-  window.addEventListener('hashchange', () => { if (isRegisterRoute() || isPortalRoute()) renderPublicRoute(); else App.backToApp(); });
+  window.addEventListener('hashchange', () => { if (isPublicRoute()) renderPublicRoute(); else App.backToApp(); });
   const token = Settings.get('token', ''), user = await DB.get('kv', 'user');
   if (token && user) { App.state.token = token; App.state.user = user; }
-  if (isRegisterRoute() || isPortalRoute()) renderPublicRoute();
+  if (isPublicRoute()) renderPublicRoute();
   else if (token && user && getApiUrl()) await App.start();
   else App.renderLogin();
 })();

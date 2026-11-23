@@ -15,12 +15,13 @@ App.renderRegister = function () {
   const app = clear($('#app')), S = { tab: 'ogretmen', places: null };
   const back = h('a', { href: '#', id: 'rg-back', onclick: e => { e.preventDefault(); App.backToApp(); } }, App.state.user ? '← Uygulamaya dön' : '← Girişe dön');
   const body = h('div');
+  const helpLink = h('a', { href: '#/kilavuz/uye-ogretmen', id: 'rg-help' }, 'Nasıl üye olunur? Kullanım kılavuzu');
   const tabs = h('div', { class: 'tabs', role: 'tablist' });
-  const root = h('div', { class: 'reg' }, h('p', { style: { margin: 0 } }, back), h('h1', null, 'Üye ol'),
+  const root = h('div', { class: 'reg' }, h('p', { style: { margin: 0 } }, back), h('h1', null, 'Üye ol'), h('p', { class: 'small center', style: { margin: '0 0 .4rem' } }, helpLink),
     h('p', { class: 'muted small center', style: { marginTop: 0 } }, 'Başvurunuz, ilgili yetkilinin onayından sonra etkinleşir. Parolanız özetlenerek saklanır; düz metin olarak tutulmaz.'), tabs, body);
   app.append(root);
 
-  const drawTabs = () => clear(tabs).append(...[['ogretmen', 'Öğretmen üyeliği'], ['okul', 'Okul kaydı (okul yöneticisi)']].map(([id, l]) => h('button', { id: 'rg-tab-' + id, role: 'tab', class: S.tab === id ? 'active' : '', onclick: () => { S.tab = id; drawTabs(); draw(); } }, l)));
+  const drawTabs = () => { helpLink.href = '#/kilavuz/' + (S.tab === 'okul' ? 'uye-okul' : 'uye-ogretmen'); return clear(tabs).append(...[['ogretmen', 'Öğretmen üyeliği'], ['okul', 'Okul kaydı (okul yöneticisi)']].map(([id, l]) => h('button', { id: 'rg-tab-' + id, role: 'tab', class: S.tab === id ? 'active' : '', onclick: () => { S.tab = id; drawTabs(); draw(); } }, l))); };
   const draw = () => { S.gen = (S.gen || 0) + 1; clear(body); (S.tab === 'ogretmen' ? teacherForm : schoolForm)(body); };
 
   async function loadPlaces() {

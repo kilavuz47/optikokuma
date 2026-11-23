@@ -100,7 +100,7 @@ App.renderPortal = function () {
 
     /* ---- sayfa ---- */
     const head = [h('p', { style: { margin: 0 } }, back()), h('h1', null, 'Öğrenci / Veli Sorgulama'),
-      h('p', { class: 'muted small center', style: { marginTop: 0 } }, 'Okulunuzu, sınıfınızı ve okul numaranızı seçerek deneme sınavı sonuçlarınıza ulaşabilirsiniz. Giriş gerekmez.')];
+      h('p', { class: 'muted small center', style: { marginTop: 0 } }, 'Okulunuzu, sınıfınızı ve okul numaranızı seçerek deneme sınavı sonuçlarınıza ulaşabilirsiniz. Giriş gerekmez. ', h('a', { href: '#/kilavuz/veli-sorgu', id: 'pt-help', class: 'noprint' }, 'Nasıl kullanılır?'))];
     if (notice) head.push(h('div', { class: 'alert info', id: 'pt-notice' }, notice));
     const form = h('div', { class: 'card' }, h('h2', null, '1. Okulunuzu seçin'), schoolBox, h('h2', { style: { marginTop: '1rem' } }, '2. Sınıf ve okul numarası'), classBox, hp, err, btn,
       h('p', { class: 'small muted', style: { marginBottom: 0 } }, 'Yalnızca öğretmeniniz sonuçları "öğrenci/veli sorgulamasına açık" yaptığı denemeler görünür. Başkasının bilgilerine ulaşılamaz; adınız kısmen gizlenerek gösterilir. Okul numarası ve veli kodu bu cihazda saklanmaz.'));
